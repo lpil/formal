@@ -118,8 +118,8 @@ pub fn finish(form: FormValidator(output)) -> Result(output, FormState) {
 
 /// Add an additional validation step to the field decoder function.
 ///
-/// This function behaves the same as the `try` function in the standard
-/// library `gleam/result` module.
+/// This function behaves similar to the `try` function in the standard library
+/// `gleam/result` module.
 ///
 pub fn and(
   previous: fn(a) -> Result(b, String),
@@ -229,7 +229,7 @@ pub fn float(input: String) -> Result(Float, String) {
 ///
 /// ```gleam
 /// number("ok")
-/// # -> Error("Must be a number with a decimal point")
+/// # -> Error("Must be a number")
 /// ```
 ///
 pub fn number(input: String) -> Result(Float, String) {
