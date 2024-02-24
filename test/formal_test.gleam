@@ -2,7 +2,7 @@ import gleam/function
 import gleam/dict
 import gleeunit
 import gleeunit/should
-import form.{type FormState, FormState}
+import formal/form.{type FormState, FormState}
 
 pub fn main() {
   gleeunit.main()
@@ -18,23 +18,23 @@ fn person_form(values: List(#(String, String))) -> Result(Person, FormState) {
   |> form.field(
     "email",
     form.string
-      |> form.and(form.must_be_non_empty)
+      |> form.and(form.must_not_be_empty)
       |> form.and(form.must_be_an_email),
   )
   |> form.field(
     "name",
     form.string
-      |> form.and(form.must_be_non_empty)
+      |> form.and(form.must_not_be_empty)
       |> form.and(must_not_be_rude_name),
   )
   |> form.field(
     "age",
     form.int
       |> form.and(
-        form.must_be_greater_than(-1)
+        form.must_be_greater_int_than(-1)
         |> form.message("Must have been born"),
       )
-      |> form.and(form.must_be_less_than(130)),
+      |> form.and(form.must_be_lesser_int_than(130)),
   )
   |> form.finish
 }
@@ -54,8 +54,8 @@ pub fn person_form_empty_test() {
       dict.from_list([]),
       dict.from_list([
         #("age", "Must be a whole number"),
-        #("name", "Must be given"),
-        #("email", "Must be given"),
+        #("name", "Must not be blank"),
+        #("email", "Must not be blank"),
       ]),
     )),
   )
@@ -68,7 +68,7 @@ pub fn person_form_no_email_test() {
   |> should.equal(
     Error(FormState(
       dict.from_list(values),
-      dict.from_list([#("email", "Must be given")]),
+      dict.from_list([#("email", "Must not be blank")]),
     )),
   )
   [#("name", "Joan"), #("age", "34")]

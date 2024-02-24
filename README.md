@@ -1,20 +1,20 @@
-# form
+# formal
 
-[![Package Version](https://img.shields.io/hexpm/v/form)](https://hex.pm/packages/form)
-[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/form/)
+[![Package Version](https://img.shields.io/hexpm/v/formal)](https://hex.pm/packages/formal)
+[![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/formal/)
 
 ```sh
-gleam add form
+gleam add formal
 ```
 ```gleam
-import form
+import formal
 
 pub fn main() {
   // TODO: An example of the project in use
 }
 ```
 
-Further documentation can be found at <https://hexdocs.pm/form>.
+Further documentation can be found at <https://hexdocs.pm/formal>.
 
 ## Development
 
