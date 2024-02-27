@@ -327,3 +327,13 @@ pub fn must_equal_error_test() {
   form.must_equal(1, "wibble")(2)
   |> should.equal(Error("wibble"))
 }
+
+pub fn must_be_string_longer_than_ok_test() {
+  form.must_be_string_longer_than(2)("abc")
+  |> should.equal(Ok("abc"))
+}
+
+pub fn must_be_string_longer_than_error_test() {
+  form.must_be_string_longer_than(2)("ab")
+  |> should.equal(Error("Must be longer than 2 characters"))
+}
