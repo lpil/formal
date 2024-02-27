@@ -536,6 +536,33 @@ pub fn must_equal(
   }
 }
 
+/// Assert that the string has at least the given length.
+///
+/// # Examples
+///
+/// ```gleam
+/// let check = must_be_string_longer_than(4)
+/// check("hello")
+/// # -> Ok("hello")
+/// ```
+///
+/// ```gleam
+/// let check = must_be_string_longer_than(4)
+/// check("hi")
+/// # -> Error("Must be longer than 2 characters")
+/// ```
+///
+pub fn must_be_string_longer_than(
+  length: Int,
+) -> fn(String) -> Result(String, String) {
+  fn(input) {
+    case string.length(input) > length {
+      True -> Ok(input)
+      False -> Error("Must be longer than 2 characters")
+    }
+  }
+}
+
 //
 // Helper functions
 //
