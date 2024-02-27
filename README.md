@@ -1,5 +1,7 @@
 # formal
 
+Type safe HTML form decoding and validation!
+
 [![Package Version](https://img.shields.io/hexpm/v/formal)](https://hex.pm/packages/formal)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/formal/)
 
@@ -48,11 +50,3 @@ pub fn handle_form_submission(values: List(#(String, String))) {
 ```
 
 Further documentation can be found at <https://hexdocs.pm/formal>.
-
-## Development
-
-```sh
-gleam run   # Run the project
-gleam test  # Run the tests
-gleam shell # Run an Erlang shell
-```
