@@ -9,11 +9,11 @@ pub fn main() {
 }
 
 pub type Person {
-  Person(email: String, name: String, age: Int)
+  Person(email: String, name: String, age: Int, tags: List(String))
 }
 
 fn person_form(values: List(#(String, String))) -> Result(Person, FormState) {
-  form.decoding(function.curry3(Person))
+  form.decoding(function.curry4(Person))
   |> form.with_values(values)
   |> form.field(
     "email",
@@ -36,6 +36,7 @@ fn person_form(values: List(#(String, String))) -> Result(Person, FormState) {
       )
       |> form.and(form.must_be_lesser_int_than(130)),
   )
+  |> form.multifield("tags", form.list(form.string))
   |> form.finish
 }
 
@@ -67,7 +68,7 @@ pub fn person_form_no_email_test() {
   |> person_form
   |> should.equal(
     Error(FormState(
-      dict.from_list(values),
+      dict.from_list([#("name", ["Joan"]), #("age", ["34"])]),
       dict.from_list([#("email", "Must not be blank")]),
     )),
   )
@@ -80,7 +81,11 @@ pub fn person_form_invalid_email_test() {
   |> person_form
   |> should.equal(
     Error(FormState(
-      dict.from_list(values),
+      dict.from_list([
+        #("name", ["Joan"]),
+        #("age", ["34"]),
+        #("email", ["a@a@a"]),
+      ]),
       dict.from_list([#("email", "Must be an email")]),
     )),
   )
@@ -92,7 +97,11 @@ pub fn person_form_custom_message_test() {
   |> person_form
   |> should.equal(
     Error(FormState(
-      dict.from_list(values),
+      dict.from_list([
+        #("name", ["Joan"]),
+        #("age", ["-1"]),
+        #("email", ["a@example.com"]),
+      ]),
       dict.from_list([#("age", "Must have been born")]),
     )),
   )
@@ -101,7 +110,9 @@ pub fn person_form_custom_message_test() {
 pub fn person_form_ok_test() {
   [#("name", "Joan"), #("age", "34"), #("email", "a@example.com")]
   |> person_form
-  |> should.equal(Ok(Person(name: "Joan", email: "a@example.com", age: 34)))
+  |> should.equal(
+    Ok(Person(name: "Joan", email: "a@example.com", age: 34, tags: [])),
+  )
 }
 
 pub fn person_form_extra_field_test() {
@@ -112,7 +123,29 @@ pub fn person_form_extra_field_test() {
     #("email", "a@example.com"),
   ]
   |> person_form
-  |> should.equal(Ok(Person(name: "Joan", email: "a@example.com", age: 34)))
+  |> should.equal(
+    Ok(Person(name: "Joan", email: "a@example.com", age: 34, tags: [])),
+  )
+}
+
+pub fn person_form_multiple_values_test() {
+  [
+    #("name", "Joan"),
+    #("admin", "on"),
+    #("age", "34"),
+    #("email", "a@example.com"),
+    #("tags", "a"),
+    #("tags", "b"),
+    #("tags", "c"),
+  ]
+  |> person_form
+  |> should.equal(
+    Ok(
+      Person(name: "Joan", email: "a@example.com", age: 34, tags: [
+        "a", "b", "c",
+      ]),
+    ),
+  )
 }
 
 pub fn new_test() {

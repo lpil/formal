@@ -4,13 +4,14 @@ import gleam/float
 import gleam/list
 import gleam/result
 import gleam/string
+import gleam/option
 
 /// An invalid or unfinished form. This is either created by the `new`
 /// function, which creates a new empty form, or by the `finish` function when
 /// the validation failed, returning the invalid form.
 ///
 pub type FormState {
-  FormState(values: Dict(String, String), errors: Dict(String, String))
+  FormState(values: Dict(String, List(String)), errors: Dict(String, String))
 }
 
 /// A collection of validations that decode data from a form into a typed value.
@@ -19,8 +20,8 @@ pub type FormState {
 /// validate a form.
 ///
 pub opaque type FormValidator(output) {
-  InvalidForm(values: Dict(String, String), errors: Dict(String, String))
-  ValidForm(values: Dict(String, String), output: output)
+  InvalidForm(values: Dict(String, List(String)), errors: Dict(String, String))
+  ValidForm(values: Dict(String, List(String)), output: output)
 }
 
 /// Set the constructor that is used to create the success value if the form
@@ -53,8 +54,10 @@ pub fn with_values(
   values: List(#(String, String)),
 ) -> FormValidator(out) {
   values
-  |> list.fold(get_values(form), fn(acc, pair) {
-    dict.insert(acc, pair.0, pair.1)
+  |> list.fold_right(dict.new(), fn(acc, pair) {
+    dict.update(acc, pair.0, fn(previous) {
+      [pair.1, ..option.unwrap(previous, [])]
+    })
   })
   |> with_values_dict(form, _)
 }
@@ -63,7 +66,7 @@ pub fn with_values(
 ///
 pub fn with_values_dict(
   form: FormValidator(out),
-  values: Dict(String, String),
+  values: Dict(String, List(String)),
 ) -> FormValidator(out) {
   case form {
     InvalidForm(_, errors) -> InvalidForm(values, errors)
@@ -74,16 +77,21 @@ pub fn with_values_dict(
 /// Add the next field to be decoded and validated from the form, corresponding
 /// to the next argument to the constructor.
 ///
-pub fn field(
+/// This function is useful when you have multiple inputs with the same name in
+/// the form, and you most likely want to use it with the `list` decoder
+/// function. When there is only a single input with the given name in the form
+/// then the `field` function is more appropriate.
+///
+pub fn multifield(
   form: FormValidator(fn(t) -> rest),
   name: String,
-  decoder: fn(String) -> Result(t, String),
+  decoder: fn(List(String)) -> Result(t, String),
 ) -> FormValidator(rest) {
   let result =
     form
     |> get_values
     |> dict.get(name)
-    |> result.unwrap("")
+    |> result.unwrap([])
     |> decoder
   case form {
     ValidForm(values, output) ->
@@ -99,6 +107,22 @@ pub fn field(
           InvalidForm(values, dict.insert(errors, name, message))
       }
   }
+}
+
+/// Add the next field to be decoded and validated from the form, corresponding
+/// to the next argument to the constructor.
+///
+pub fn field(
+  form: FormValidator(fn(t) -> rest),
+  name: String,
+  decoder: fn(String) -> Result(t, String),
+) -> FormValidator(rest) {
+  multifield(form, name, fn(value) {
+    value
+    |> list.first
+    |> result.unwrap("")
+    |> decoder
+  })
 }
 
 /// Finish the form validation, returning the success value built using the
@@ -160,6 +184,28 @@ pub fn message(
 ///
 pub fn string(input: String) -> Result(String, String) {
   Ok(string.trim(input))
+}
+
+/// Decode all the values for a field as a given type. This is useful with the
+/// `multifield` function when there are multiple inputs with the same name in
+/// the form.
+///
+/// # Examples
+///
+/// ```gleam
+/// int("123")
+/// # -> Ok(123)
+/// ```
+///
+/// ```gleam
+/// int("ok")
+/// # -> Error("Must be a whole number")
+/// ```
+///
+pub fn list(
+  of decoder: fn(String) -> Result(t, String),
+) -> fn(List(String)) -> Result(List(t), String) {
+  list.try_map(_, decoder)
 }
 
 /// Decode the field value as an int.
@@ -494,7 +540,7 @@ pub fn must_equal(
 // Helper functions
 //
 
-fn get_values(form: FormValidator(output)) -> Dict(String, String) {
+fn get_values(form: FormValidator(output)) -> Dict(String, List(String)) {
   case form {
     InvalidForm(values, _) -> values
     ValidForm(values, _) -> values
