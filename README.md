@@ -53,4 +53,7 @@ pub fn handle_form_submission(values: List(#(String, String))) {
 }
 ```
 
+An example of using this library with Wisp and Lustre can be found in
+[./example/](https://github.com/lpil/formal/tree/main/test).
+
 Further documentation can be found at <https://hexdocs.pm/formal>.
