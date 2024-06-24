@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v2.0.0 - 2024-06-24
 
 - The `formal/form` gains the `initial_values` function for creating a
   `FormState` with some initial values. This may be useful for rendering an
