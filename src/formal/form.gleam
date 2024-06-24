@@ -41,14 +41,15 @@ pub fn decoding(into constructor: fn(a) -> rest) -> FormValidator(fn(a) -> rest)
 /// # Examples
 ///
 /// ```gleam
-/// decoding({
+/// form.decoding({
 ///   use name <- parameter
 ///   use email <- parameter
+///   SignUp(name: name, email: email)
 /// })
-/// |> with_values(values)
-/// |> field("email", string)
-/// |> field("password", string)
-/// |> finish
+/// |> form.with_values(values)
+/// |> form.field("email", string)
+/// |> form.field("password", string)
+/// |> form.finish
 /// ```
 ///
 pub fn parameter(f: fn(a) -> b) -> fn(a) -> b {
