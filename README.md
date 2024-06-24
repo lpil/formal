@@ -22,7 +22,11 @@ pub type SignUp {
 //
 pub fn handle_form_submission(values: List(#(String, String))) {
   let result = 
-    form.decoding(function.curry2(SignUp))
+    form.decoding({
+      use email <- form.parameter
+      use password <- form.parameter
+      User(email: email, password: password)
+    })
     |> form.with_values(values)
     |> form.field(
       "email",

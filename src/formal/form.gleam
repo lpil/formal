@@ -1,10 +1,10 @@
 import gleam/dict.{type Dict}
-import gleam/int
 import gleam/float
+import gleam/int
 import gleam/list
+import gleam/option
 import gleam/result
 import gleam/string
-import gleam/option
 
 /// An invalid or unfinished form. This is either created by the `new`
 /// function, which creates a new empty form, or by the `finish` function when
@@ -33,6 +33,26 @@ pub opaque type FormValidator(output) {
 ///
 pub fn decoding(into constructor: fn(a) -> rest) -> FormValidator(fn(a) -> rest) {
   ValidForm(dict.new(), constructor)
+}
+
+/// This function is used to create constructor functions that take arguments
+/// one at a time, making them suitable for passing to the `decode` function.
+///
+/// # Examples
+///
+/// ```gleam
+/// decoding({
+///   use name <- parameter
+///   use email <- parameter
+/// })
+/// |> with_values(values)
+/// |> field("email", string)
+/// |> field("password", string)
+/// |> finish
+/// ```
+///
+pub fn parameter(f: fn(a) -> b) -> fn(a) -> b {
+  f
 }
 
 /// Create a new empty form.

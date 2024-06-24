@@ -1,8 +1,7 @@
-import gleam/function
+import formal/form.{type FormState, FormState}
 import gleam/dict
 import gleeunit
 import gleeunit/should
-import formal/form.{type FormState, FormState}
 
 pub fn main() {
   gleeunit.main()
@@ -13,7 +12,13 @@ pub type Person {
 }
 
 fn person_form(values: List(#(String, String))) -> Result(Person, FormState) {
-  form.decoding(function.curry4(Person))
+  form.decoding({
+    use email <- form.parameter
+    use name <- form.parameter
+    use age <- form.parameter
+    use tags <- form.parameter
+    Person(email, name, age, tags)
+  })
   |> form.with_values(values)
   |> form.field(
     "email",
