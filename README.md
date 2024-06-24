@@ -25,7 +25,7 @@ pub fn handle_form_submission(values: List(#(String, String))) {
     form.decoding({
       use email <- form.parameter
       use password <- form.parameter
-      User(email: email, password: password)
+      SignUp(email: email, password: password)
     })
     |> form.with_values(values)
     |> form.field(
