@@ -57,10 +57,49 @@ pub fn parameter(f: fn(a) -> b) -> fn(a) -> b {
 
 /// Create a new empty form.
 ///
-/// You likely want to use this when rendering a page containing a new form.
+/// You likely want to use this or `initial_values` when rendering a page
+/// containing a new form.
 ///
 pub fn new() -> FormState {
   FormState(dict.new(), dict.new())
+}
+
+/// Create a new form with some initial values.
+///
+/// You likely want to use this or `new` when rendering a page
+/// containing a new form.
+///
+pub fn initial_values(values: List(#(String, String))) -> FormState {
+  FormState(values: kw_to_dict(values), errors: dict.new())
+}
+
+/// Get a single value from a `FormState`, returning an empty string if there
+/// was no value. If there was multiple values for the field name then the
+/// first is returned.
+///
+/// This function may be helpful for getting values for inputs when rendering a
+/// HTML form.
+///
+/// If you want a `Result` back instead use the `dict.get` function with
+/// `form_state.values`.
+///
+pub fn value(form_state: FormState, name: String) -> String {
+  case dict.get(form_state.values, name) {
+    Ok([value, ..]) -> value
+    _ -> ""
+  }
+}
+
+/// Check the field in a `FieldState` for an error, returning it as the `Error`
+/// variant of a `Result` if it exists.
+///
+/// This function may be helpful when rendering a HTML form.
+///
+pub fn field_state(form_state: FormState, name: String) -> Result(Nil, String) {
+  case dict.get(form_state.errors, name) {
+    Ok(e) -> Error(e)
+    Error(e) -> Ok(e)
+  }
 }
 
 /// Set the values from the form submission to be validated.
@@ -74,12 +113,16 @@ pub fn with_values(
   values: List(#(String, String)),
 ) -> FormValidator(out) {
   values
-  |> list.fold_right(dict.new(), fn(acc, pair) {
+  |> kw_to_dict
+  |> with_values_dict(form, _)
+}
+
+fn kw_to_dict(values: List(#(String, String))) -> Dict(String, List(String)) {
+  list.fold_right(values, dict.new(), fn(acc, pair) {
     dict.update(acc, pair.0, fn(previous) {
       [pair.1, ..option.unwrap(previous, [])]
     })
   })
-  |> with_values_dict(form, _)
 }
 
 /// Set the values from the form submission to be validated.

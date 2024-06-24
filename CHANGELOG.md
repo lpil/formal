@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- The `formal/form` gains the `initial_values` function for creating a
+  `FormState` with some initial values. This may be useful for rendering an
+  unvalidated form.
+- The `formal/form` gains the `value` and `field_state` convenience functions
+  for getting values and errors from a `FormState`.
+
 ## v1.1.0 - 2024-06-24
 
 - The `formal/form` gains the `parameter` function. This function is intended to
