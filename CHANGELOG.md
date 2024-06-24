@@ -7,6 +7,7 @@
   unvalidated form.
 - The `formal/form` gains the `value` and `field_state` convenience functions
   for getting values and errors from a `FormState`.
+- The `FormState` type has been renamed to `Form`.
 
 ## v1.1.0 - 2024-06-24
 
