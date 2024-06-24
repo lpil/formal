@@ -10,8 +10,8 @@ import gleam/string
 /// function, which creates a new empty form, or by the `finish` function when
 /// the validation failed, returning the invalid form.
 ///
-pub type FormState {
-  FormState(values: Dict(String, List(String)), errors: Dict(String, String))
+pub type Form {
+  Form(values: Dict(String, List(String)), errors: Dict(String, String))
 }
 
 /// A collection of validations that decode data from a form into a typed value.
@@ -60,8 +60,8 @@ pub fn parameter(f: fn(a) -> b) -> fn(a) -> b {
 /// You likely want to use this or `initial_values` when rendering a page
 /// containing a new form.
 ///
-pub fn new() -> FormState {
-  FormState(dict.new(), dict.new())
+pub fn new() -> Form {
+  Form(dict.new(), dict.new())
 }
 
 /// Create a new form with some initial values.
@@ -69,11 +69,11 @@ pub fn new() -> FormState {
 /// You likely want to use this or `new` when rendering a page
 /// containing a new form.
 ///
-pub fn initial_values(values: List(#(String, String))) -> FormState {
-  FormState(values: kw_to_dict(values), errors: dict.new())
+pub fn initial_values(values: List(#(String, String))) -> Form {
+  Form(values: kw_to_dict(values), errors: dict.new())
 }
 
-/// Get a single value from a `FormState`, returning an empty string if there
+/// Get a single value from a `Form`, returning an empty string if there
 /// was no value. If there was multiple values for the field name then the
 /// first is returned.
 ///
@@ -81,10 +81,10 @@ pub fn initial_values(values: List(#(String, String))) -> FormState {
 /// HTML form.
 ///
 /// If you want a `Result` back instead use the `dict.get` function with
-/// `form_state.values`.
+/// `form.values`.
 ///
-pub fn value(form_state: FormState, name: String) -> String {
-  case dict.get(form_state.values, name) {
+pub fn value(form: Form, name: String) -> String {
+  case dict.get(form.values, name) {
     Ok([value, ..]) -> value
     _ -> ""
   }
@@ -95,8 +95,8 @@ pub fn value(form_state: FormState, name: String) -> String {
 ///
 /// This function may be helpful when rendering a HTML form.
 ///
-pub fn field_state(form_state: FormState, name: String) -> Result(Nil, String) {
-  case dict.get(form_state.errors, name) {
+pub fn field_state(form: Form, name: String) -> Result(Nil, String) {
+  case dict.get(form.errors, name) {
     Ok(e) -> Error(e)
     Error(e) -> Ok(e)
   }
@@ -192,9 +192,9 @@ pub fn field(
 /// constructor, or the invalid form containing the values and errors, which
 /// can be used to render the form again to the user.
 ///
-pub fn finish(form: FormValidator(output)) -> Result(output, FormState) {
+pub fn finish(form: FormValidator(output)) -> Result(output, Form) {
   case form {
-    InvalidForm(values, errors) -> Error(FormState(values, errors))
+    InvalidForm(values, errors) -> Error(Form(values, errors))
     ValidForm(_, output) -> Ok(output)
   }
 }

@@ -1,11 +1,4 @@
-// TODO: rename FormState to Form
-// TODO: rename FormState to Form
-// TODO: rename FormState to Form
-// TODO: rename FormState to Form
-// TODO: rename FormState to Form
-// TODO: rename FormState to Form
-//
-import formal/form.{type FormState}
+import formal/form.{type Form}
 import gleam/erlang/process
 import gleam/http.{Get, Post}
 import gleam/string
@@ -33,7 +26,7 @@ pub fn handle_request(req: Request) -> Response {
 }
 
 fn new_form() -> Response {
-  // Create a new empty FormState to render the HTML form with.
+  // Create a new empty Form to render the HTML form with.
   // If the form is for updating something that already exists you may want to
   // use `form.initial_values` to pre-fill some fields.
   let form = form.new()
@@ -74,7 +67,7 @@ fn submit_form(req: Request) -> Response {
 }
 
 /// Render a HTML form for a Form object using Lustre
-fn render_form(form: FormState) -> StringBuilder {
+fn render_form(form: Form) -> StringBuilder {
   html.form([attribute.method("POST")], [
     form_field(form, name: "name", kind: "text", title: "Name"),
     form_field(form, name: "level", kind: "number", title: "Level"),
@@ -89,7 +82,7 @@ fn render_form(form: FormState) -> StringBuilder {
 /// If the field has an error it is displayed.
 ///
 fn form_field(
-  form: FormState,
+  form: Form,
   name name: String,
   kind kind: String,
   title title: String,
