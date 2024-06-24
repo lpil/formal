@@ -1,4 +1,4 @@
-import formal/form.{type FormState, FormState}
+import formal/form.{type Form, Form}
 import gleam/dict
 import gleeunit
 import gleeunit/should
@@ -11,7 +11,7 @@ pub type Person {
   Person(email: String, name: String, age: Int, tags: List(String))
 }
 
-fn person_form(values: List(#(String, String))) -> Result(Person, FormState) {
+fn person_form(values: List(#(String, String))) -> Result(Person, Form) {
   form.decoding({
     use email <- form.parameter
     use name <- form.parameter
@@ -56,7 +56,7 @@ pub fn person_form_empty_test() {
   []
   |> person_form
   |> should.equal(
-    Error(FormState(
+    Error(Form(
       dict.from_list([]),
       dict.from_list([
         #("age", "Must be a whole number"),
@@ -72,7 +72,7 @@ pub fn person_form_no_email_test() {
   values
   |> person_form
   |> should.equal(
-    Error(FormState(
+    Error(Form(
       dict.from_list([#("name", ["Joan"]), #("age", ["34"])]),
       dict.from_list([#("email", "Must not be blank")]),
     )),
@@ -85,7 +85,7 @@ pub fn person_form_invalid_email_test() {
   values
   |> person_form
   |> should.equal(
-    Error(FormState(
+    Error(Form(
       dict.from_list([
         #("name", ["Joan"]),
         #("age", ["34"]),
@@ -101,7 +101,7 @@ pub fn person_form_custom_message_test() {
   values
   |> person_form
   |> should.equal(
-    Error(FormState(
+    Error(Form(
       dict.from_list([
         #("name", ["Joan"]),
         #("age", ["-1"]),
@@ -155,7 +155,7 @@ pub fn person_form_multiple_values_test() {
 
 pub fn new_test() {
   form.new()
-  |> should.equal(FormState(dict.new(), dict.new()))
+  |> should.equal(Form(dict.new(), dict.new()))
 }
 
 pub fn and_ok_ok_test() {
