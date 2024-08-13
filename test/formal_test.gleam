@@ -342,3 +342,13 @@ pub fn must_be_string_longer_than_error_test() {
   form.must_be_string_longer_than(2)("ab")
   |> should.equal(Error("Must be longer than 2 characters"))
 }
+
+pub fn must_be_string_shorter_than_ok_test() {
+  form.must_be_string_shorter_than(3)("hi")
+  |> should.equal(Ok("hi"))
+}
+
+pub fn must_be_string_shorter_than_error_test() {
+  form.must_be_string_shorter_than(5)("hello")
+  |> should.equal(Error("Must be shorter than 5 characters"))
+}

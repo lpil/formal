@@ -600,20 +600,20 @@ pub fn must_equal(
   }
 }
 
-/// Assert that the string has at least the given length.
+/// Assert that the string is longer than the given length.
 ///
 /// # Examples
 ///
 /// ```gleam
 /// let check = must_be_string_longer_than(4)
 /// check("hello")
-/// # -> Ok("hello")
+/// // -> Ok("hello")
 /// ```
 ///
 /// ```gleam
-/// let check = must_be_string_longer_than(4)
+/// let check = must_be_string_longer_than(2)
 /// check("hi")
-/// # -> Error("Must be longer than 2 characters")
+/// // -> Error("Must be longer than 2 characters")
 /// ```
 ///
 pub fn must_be_string_longer_than(
@@ -622,7 +622,36 @@ pub fn must_be_string_longer_than(
   fn(input) {
     case string.length(input) > length {
       True -> Ok(input)
-      False -> Error("Must be longer than 2 characters")
+      False ->
+        Error("Must be longer than " <> int.to_string(length) <> " characters")
+    }
+  }
+}
+
+/// Assert that the string is shorter than the given length.
+///
+/// # Examples
+///
+/// ```gleam
+/// let check = must_be_string_shorter_than(3)
+/// check("hi")
+/// // -> Ok("hi")
+/// ```
+///
+/// ```gleam
+/// let check = must_be_string_shorter_than(5)
+/// check("hello")
+/// // -> Error("Must be shorter than 5 characters")
+/// ```
+///
+pub fn must_be_string_shorter_than(
+  length: Int,
+) -> fn(String) -> Result(String, String) {
+  fn(input) {
+    case string.length(input) < length {
+      True -> Ok(input)
+      False ->
+        Error("Must be shorter than " <> int.to_string(length) <> " characters")
     }
   }
 }
