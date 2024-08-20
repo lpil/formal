@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.1.0 - 2024-08-20
+
+- Added the `must_be_string_shorter_than` function.
+- Fixed a bug in the `must_be_string_longer_than` error message.
+
 ## v2.0.0 - 2024-06-24
 
 - The `formal/form` gains the `initial_values` function for creating a
