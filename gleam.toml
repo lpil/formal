@@ -1,5 +1,5 @@
 name = "formal"
-version = "2.0.0"
+version = "2.1.0"
 description = "Type safe HTML form decoding and validation!"
 licences = ["Apache-2.0"]
 repository = { type = "github", user = "lpil", repo = "formal" }
