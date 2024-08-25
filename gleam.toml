@@ -9,7 +9,7 @@ links = [
 ]
 
 [dependencies]
-gleam_stdlib = "~> 0.34 or ~> 1.0"
+gleam_stdlib = "~> 0.39 or ~> 1.0"
 
 [dev-dependencies]
 gleeunit = "~> 1.0"

@@ -120,7 +120,7 @@ pub fn with_values(
 
 fn kw_to_dict(values: List(#(String, String))) -> Dict(String, List(String)) {
   list.fold_right(values, dict.new(), fn(acc, pair) {
-    dict.update(acc, pair.0, fn(previous) {
+    dict.upsert(acc, pair.0, fn(previous) {
       [pair.1, ..option.unwrap(previous, [])]
     })
   })
