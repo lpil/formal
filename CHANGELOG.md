@@ -1,5 +1,9 @@
 # Changelog
 
+## v2.2.0 - 2024-08-26
+
+- Updated for `gleam_stdlib` v0.40.0.
+
 ## v2.1.0 - 2024-08-20
 
 - Added the `must_be_string_shorter_than` function.
