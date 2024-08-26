@@ -6,7 +6,7 @@ gleam_stdlib = ">= 0.34.0 and < 2.0.0"
 gleam_erlang = ">= 0.25.0 and < 1.0.0"
 gleam_http = ">= 3.6.0 and < 4.0.0"
 mist = ">= 1.2.0 and < 2.0.0"
-wisp = ">= 0.15.0 and < 1.0.0"
+wisp = ">= 1.0.0 and < 2.0.0"
 lustre = ">= 4.3.0 and < 5.0.0"
 formal = { path = ".." }
 
