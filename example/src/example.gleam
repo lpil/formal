@@ -8,6 +8,7 @@ import lustre/element.{type Element}
 import lustre/element/html
 import mist
 import wisp.{type Request, type Response}
+import wisp/wisp_mist
 
 type Submission {
   Submission(name: String, level: Int)
@@ -117,7 +118,7 @@ pub fn main() {
   let secret_key_base = wisp.random_string(64)
 
   let assert Ok(_) =
-    wisp.mist_handler(handle_request, secret_key_base)
+    wisp_mist.handler(handle_request, secret_key_base)
     |> mist.new
     |> mist.port(8000)
     |> mist.start_http
