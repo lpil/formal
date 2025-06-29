@@ -24,56 +24,6 @@ pub opaque type FormValidator(output) {
   ValidForm(values: Dict(String, List(String)), output: output)
 }
 
-/// Set the constructor that is used to create the success value if the form
-/// decodes and validates successfully.
-///
-/// You will want to use a curried constructor function here. The `curry*`
-/// functions in the `gleam/function` standard library module can be used to
-/// help with this.
-///
-pub fn decoding(into constructor: fn(a) -> rest) -> FormValidator(fn(a) -> rest) {
-  ValidForm(dict.new(), constructor)
-}
-
-/// This function is used to create constructor functions that take arguments
-/// one at a time, making them suitable for passing to the `decode` function.
-///
-/// # Examples
-///
-/// ```gleam
-/// form.decoding({
-///   use name <- parameter
-///   use email <- parameter
-///   SignUp(name: name, email: email)
-/// })
-/// |> form.with_values(values)
-/// |> form.field("email", string)
-/// |> form.field("password", string)
-/// |> form.finish
-/// ```
-///
-pub fn parameter(f: fn(a) -> b) -> fn(a) -> b {
-  f
-}
-
-/// Create a new empty form.
-///
-/// You likely want to use this or `initial_values` when rendering a page
-/// containing a new form.
-///
-pub fn new() -> Form {
-  Form(dict.new(), dict.new())
-}
-
-/// Create a new form with some initial values.
-///
-/// You likely want to use this or `new` when rendering a page
-/// containing a new form.
-///
-pub fn initial_values(values: List(#(String, String))) -> Form {
-  Form(values: kw_to_dict(values), errors: dict.new())
-}
-
 /// Get a single value from a `Form`, returning an empty string if there
 /// was no value. If there was multiple values for the field name then the
 /// first is returned.
