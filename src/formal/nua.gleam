@@ -6,27 +6,37 @@ import gleam/result
 import gleam/string
 
 // TODO: custom parser
+// TODO: mapping
 
-// TODO: document
+/// A form! Created from a `Schema` with the `new` function.
+///
+/// Supply values to a form with the `add_*` functions and then pass it to the
+/// `run` function to get either the resulting value or any errors.
+///
+/// Use the `language` function to supply a new translation function to change
+/// the language of the error messages returned by the `error_text` function.
+/// The default language is `en_gb` English.
+///
 pub opaque type Form(model) {
   Form(
     translator: fn(FieldError) -> String,
     values: List(#(String, String)),
     errors: List(#(String, List(FieldError))),
-    run: fn(List(#(String, String)), List(#(String, List(FieldError)))) ->
-      #(model, List(#(String, List(FieldError)))),
+    run: RunFunction(model),
   )
 }
 
-// TODO: document
+type RunFunction(model) =
+  fn(List(#(String, String)), List(#(String, List(FieldError)))) ->
+    #(model, List(#(String, List(FieldError))))
+
+/// A description of how to decode from typed value from form data. This can be
+/// used to create a new form object using the `new` function.
+///
 pub opaque type Schema(model) {
-  Schema(
-    run: fn(List(#(String, String)), List(#(String, List(FieldError)))) ->
-      #(model, List(#(String, List(FieldError)))),
-  )
+  Schema(run: RunFunction(model))
 }
 
-// TODO: document
 pub type FieldError {
   MustBePresent
   MustBeInt
@@ -388,6 +398,7 @@ pub fn add_string(
   Form(..form, values: [#(field, value), ..form.values])
 }
 
+// TODO: document
 pub fn add_int(form: Form(model), field: String, value: Int) -> Form(model) {
   Form(..form, values: [#(field, int.to_string(value)), ..form.values])
 }
@@ -400,8 +411,11 @@ pub fn error_text(form: Form(model), name: String) -> List(String) {
   |> list.flat_map(list.map(_, form.translator))
 }
 
-// TODO: document
-// TODO: test
+/// Get all the form.
+///
+/// If the `run` function or the `add_error` function have not been called then
+/// the form is clean and won't have any errors yet.
+///
 pub fn errors(form: Form(model), name: String) -> List(FieldError) {
   form.errors
   |> list.key_filter(name)
