@@ -5,7 +5,7 @@ pub type Person {
 }
 
 fn person_form() -> form.Form(Person) {
-  let schema = {
+  form.new({
     use email <- form.field("email", { form.parse_email })
 
     use name <- form.field("name", {
@@ -20,11 +20,9 @@ fn person_form() -> form.Form(Person) {
       |> form.check_int_more_than(-1)
     })
 
-    use tags <- form.multifield("tags", form.parse_list(form.parse_string))
+    use tags <- form.multifield("tag", form.parse_list(form.parse_string))
     form.success(Person(email:, name:, age:, tags:))
-  }
-
-  form.new(schema)
+  })
   |> form.language(form.en_gb)
 }
 
@@ -57,6 +55,25 @@ pub fn person_form_empty_test() {
     ]
 
   assert form.all_values(form) == []
+}
+
+pub fn person_form_ok_test() {
+  let values = [
+    #("age", "100"),
+    #("name", "Wibble"),
+    #("email", "wib@example.com"),
+    #("tag", "one"),
+    #("tag", "two"),
+  ]
+  assert person_form()
+    |> form.add_values(values)
+    |> form.run
+    == Ok(
+      Person(email: "wib@example.com", name: "Wibble", age: 100, tags: [
+        "one",
+        "two",
+      ]),
+    )
 }
 
 pub fn person_form_existing_test() {
