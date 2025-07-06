@@ -6,7 +6,7 @@ Type safe HTML form decoding and validation!
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/formal/)
 
 ```sh
-gleam add formal
+gleam add formal@3
 ```
 ```gleam
 import formal/form
