@@ -1,4 +1,4 @@
-import formal/nua as form
+import formal/form
 import gleam/time/calendar
 import gleam/uri
 

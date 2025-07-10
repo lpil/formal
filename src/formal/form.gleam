@@ -1,618 +1,774 @@
-import gleam/dict.{type Dict}
+import gleam/bit_array
+import gleam/bool
 import gleam/float
 import gleam/int
 import gleam/list
 import gleam/option
 import gleam/result
 import gleam/string
+import gleam/time/calendar
+import gleam/uri
 
-/// An invalid or unfinished form. This is either created by the `new`
-/// function, which creates a new empty form, or by the `finish` function when
-/// the validation failed, returning the invalid form.
+// TODO: custom parser
+// TODO: mapping
+
+/// A form! Created from a `Schema` with the `new` function.
 ///
-pub type Form {
-  Form(values: Dict(String, List(String)), errors: Dict(String, String))
+/// Supply values to a form with the `add_*` functions and then pass it to the
+/// `run` function to get either the resulting value or any errors.
+///
+/// Use the `language` function to supply a new translation function to change
+/// the language of the error messages returned by the `error_text` function.
+/// The default language is `en_gb` English.
+///
+pub opaque type Form(model) {
+  Form(
+    translator: fn(FieldError) -> String,
+    values: List(#(String, String)),
+    errors: List(#(String, List(FieldError))),
+    run: RunFunction(model),
+  )
 }
 
-/// A collection of validations that decode data from a form into a typed value.
+type RunFunction(model) =
+  fn(List(#(String, String)), List(#(String, List(FieldError)))) ->
+    #(model, List(#(String, List(FieldError))))
+
+/// A description of how to decode from typed value from form data. This can be
+/// used to create a new form object using the `new` function.
 ///
-/// See the module documentation for an overview of how to use this type to
-/// validate a form.
-///
-pub opaque type FormValidator(output) {
-  InvalidForm(values: Dict(String, List(String)), errors: Dict(String, String))
-  ValidForm(values: Dict(String, List(String)), output: output)
+pub opaque type Schema(model) {
+  Schema(run: RunFunction(model))
 }
 
-/// Get a single value from a `Form`, returning an empty string if there
-/// was no value. If there was multiple values for the field name then the
-/// first is returned.
+pub type FieldError {
+  MustBePresent
+  MustBeInt
+  MustBeFloat
+  MustBeEmail
+  MustBePhoneNumber
+  MustBeUrl
+  MustBeDate
+  MustBeTime
+  MustBeDateTime
+  MustBeColour
+  // TODO: parser
+  MustBeStringLengthMoreThan(limit: Int)
+  // TODO: parser
+  MustBeStringLengthLessThan(limit: Int)
+  MustBeIntMoreThan(limit: Int)
+  MustBeIntLessThan(limit: Int)
+  // TODO: parser
+  MustBeFloatMoreThan(limit: Float)
+  // TODO: parser
+  MustBeFloatLessThan(limit: Float)
+  // TODO: parser
+  MustMatch
+  // TODO: parser
+  MustBeAccepted
+  // TODO: parser
+  CustomError(message: String)
+}
+
+// TODO: document
+// TODO: test
+pub opaque type Parser(value) {
+  Parser(run: fn(List(String)) -> #(value, List(FieldError)))
+}
+
+/// Create a new form from a schema.
 ///
-/// This function may be helpful for getting values for inputs when rendering a
-/// HTML form.
+/// Add values to the form with the `add_*` functions and use `run` to get
+/// either the final value or some errors from the form and values.
 ///
-/// If you want a `Result` back instead use the `dict.get` function with
-/// `form.values`.
+/// ## Example
 ///
-pub fn value(form: Form, name: String) -> String {
-  case dict.get(form.values, name) {
-    Ok([value, ..]) -> value
-    _ -> ""
+/// ```gleam
+/// let schema = {
+///   use name <- form.field("name", {
+///     form.parse_string
+///     |> form.check_not_empty
+///   })
+///   use name <- form.field("age", form.parse_int)
+///   form.success(Person(name:, age:))
+/// }
+/// let form = form.new(schema)
+/// ```
+///
+pub fn new(schema: Schema(model)) -> Form(model) {
+  Form(translator: en_gb, errors: [], values: [], run: schema.run)
+}
+
+// TODO: test
+/// Supply a transation function that will be used when converting any
+/// `FieldError`s to text that can be presented by the user.
+///
+/// Build-in languages:
+///
+/// - `en_gb`
+/// - `en_us`
+///
+/// These functions are named using the IETF language tag for the langauge they
+/// translate to.
+///
+/// If no language is supplied then `en_gb` is used by default.
+///
+pub fn language(
+  form: Form(model),
+  translator: fn(FieldError) -> String,
+) -> Form(model) {
+  Form(..form, translator:)
+}
+
+/// Get all the errors within a form.
+///
+/// If `run` or `add_error` have not been called then there will be no errors.
+///
+pub fn all_errors(form: Form(model)) -> List(#(String, List(FieldError))) {
+  form.errors
+}
+
+/// Get all the values within a form.
+///
+pub fn all_values(form: Form(model)) -> List(#(String, String)) {
+  form.values
+}
+
+// TODO: document
+// TODO: test
+pub fn get_values(form: Form(model), name: String) -> List(String) {
+  form.values |> list.key_filter(name)
+}
+
+// TODO: document
+// TODO: test
+pub fn run(form: Form(model)) -> Result(model, Form(model)) {
+  let #(value, errors) = form.run(form.values, [])
+  case errors {
+    [] -> Ok(value)
+    _ -> Error(Form(..form, errors:))
   }
 }
 
-/// Check the field in a `FieldState` for an error, returning it as the `Error`
-/// variant of a `Result` if it exists.
-///
-/// This function may be helpful when rendering a HTML form.
-///
-pub fn field_state(form: Form, name: String) -> Result(Nil, String) {
-  case dict.get(form.errors, name) {
-    Ok(e) -> Error(e)
-    Error(e) -> Ok(e)
-  }
-}
-
-/// Set the values from the form submission to be validated.
-///
-/// HTML forms can have multiple fields with the same name. This function will
-/// use the final value with each name, so if you wish to use a different value
-/// consider removing the duplicates or using `with_values_dict`.
-///
-pub fn with_values(
-  form: FormValidator(out),
-  values: List(#(String, String)),
-) -> FormValidator(out) {
-  values
-  |> kw_to_dict
-  |> with_values_dict(form, _)
-}
-
-fn kw_to_dict(values: List(#(String, String))) -> Dict(String, List(String)) {
-  list.fold_right(values, dict.new(), fn(acc, pair) {
-    dict.upsert(acc, pair.0, fn(previous) {
-      [pair.1, ..option.unwrap(previous, [])]
-    })
-  })
-}
-
-/// Set the values from the form submission to be validated.
-///
-pub fn with_values_dict(
-  form: FormValidator(out),
-  values: Dict(String, List(String)),
-) -> FormValidator(out) {
-  case form {
-    InvalidForm(_, errors) -> InvalidForm(values, errors)
-    ValidForm(_, output) -> ValidForm(values, output)
-  }
-}
-
-/// Add the next field to be decoded and validated from the form, corresponding
-/// to the next argument to the constructor.
-///
-/// This function is useful when you have multiple inputs with the same name in
-/// the form, and you most likely want to use it with the `list` decoder
-/// function. When there is only a single input with the given name in the form
-/// then the `field` function is more appropriate.
-///
-pub fn multifield(
-  form: FormValidator(fn(t) -> rest),
-  name: String,
-  decoder: fn(List(String)) -> Result(t, String),
-) -> FormValidator(rest) {
-  let result =
-    form
-    |> get_values
-    |> dict.get(name)
-    |> result.unwrap([])
-    |> decoder
-  case form {
-    ValidForm(values, output) ->
-      case result {
-        Ok(next) -> ValidForm(values, output(next))
-        Error(message) ->
-          InvalidForm(values, dict.insert(dict.new(), name, message))
-      }
-    InvalidForm(values, errors) ->
-      case result {
-        Ok(_) -> InvalidForm(values, errors)
-        Error(message) ->
-          InvalidForm(values, dict.insert(errors, name, message))
-      }
-  }
-}
-
-/// Add the next field to be decoded and validated from the form, corresponding
-/// to the next argument to the constructor.
-///
+// TODO: document
+// TODO: test
 pub fn field(
-  form: FormValidator(fn(t) -> rest),
   name: String,
-  decoder: fn(String) -> Result(t, String),
-) -> FormValidator(rest) {
-  multifield(form, name, fn(value) {
-    value
-    |> list.first
-    |> result.unwrap("")
-    |> decoder
+  parser: Parser(value),
+  continuation: fn(value) -> Schema(model),
+) -> Schema(model) {
+  Schema(fn(values, errors) {
+    let input = list.key_filter(values, name)
+    let #(value, new_errors) = parser.run(input)
+    let errors = case new_errors {
+      [] -> errors
+      _ -> [#(name, new_errors), ..errors]
+    }
+    continuation(value).run(values, errors)
   })
 }
 
-/// Finish the form validation, returning the success value built using the
-/// constructor, or the invalid form containing the values and errors, which
-/// can be used to render the form again to the user.
-///
-pub fn finish(form: FormValidator(output)) -> Result(output, Form) {
-  case form {
-    InvalidForm(values, errors) -> Error(Form(values, errors))
-    ValidForm(_, output) -> Ok(output)
-  }
+// TODO: document
+// TODO: test
+// TODO: implement
+pub fn success(value: model) -> Schema(model) {
+  Schema(fn(_, errors) { #(value, errors) })
 }
 
-//
-// Decoders
-//
+/// A parser that applies another parser to each input value in a list.
+///
+/// Takes a parser for a single value and returns a parser that can handle
+/// multiple values of the same type. This is useful for form fields that
+/// can have multiple values, such as checkboxes, multi-selects, or just
+/// repeated inputs of other types.
+///
+/// ## Example
+///
+/// ```gleam
+/// let schema = {
+///   use tags <- form.field("tag", form.parse_list(form.parse_string))
+///   form.success(Article(tags:))
+/// }
+/// ```
+///
+/// This would parse multiple "tag" fields into a list of strings.
+///
+// TODO: test
 
-/// Add an additional validation step to the field decoder function.
-///
-/// This function behaves similar to the `try` function in the standard library
-/// `gleam/result` module.
-///
-pub fn and(
-  previous: fn(a) -> Result(b, String),
-  next: fn(b) -> Result(c, String),
-) -> fn(a) -> Result(c, String) {
-  fn(data) {
-    case previous(data) {
-      Ok(value) -> next(value)
-      Error(error) -> Error(error)
+pub fn parse_list(parser: Parser(output)) -> Parser(List(output)) {
+  Parser(fn(inputs) {
+    let #(values, errors) =
+      list.fold(inputs, #([], []), fn(acc, value) {
+        let #(value, errors) = parser.run([value])
+        #([value, ..acc.0], [errors, ..acc.1])
+      })
+    let values = list.reverse(values)
+    let errors = list.reverse(errors) |> list.flatten |> list.unique
+    #(values, errors)
+  })
+}
+
+// TODO: document
+// TODO: test
+// TODO: implement
+pub fn add_values(form: Form(a), values: List(#(String, String))) -> Form(a) {
+  Form(..form, values: list.append(values, form.values))
+}
+
+// TODO: document
+// TODO: test
+pub fn parse_optional(parser: Parser(output)) -> Parser(option.Option(output)) {
+  Parser(fn(inputs) {
+    case inputs {
+      [] | [""] -> #(option.None, [])
+      _ -> {
+        let #(value, errors) = parser.run(inputs)
+        #(option.Some(value), errors)
+      }
     }
+  })
+}
+
+/// Parse a string value. This parser can never fail!
+///
+/// ## Example
+///
+/// ```gleam
+/// let schema = {
+///   use name <- form.field("name", {
+///     form.parse_string
+///     |> form.check_not_empty
+///   })
+///   form.success(Person(name:))
+/// }
+/// ```
+///
+pub const parse_string: Parser(String) = Parser(string_parser)
+
+fn string_parser(inputs: List(String)) -> #(String, List(FieldError)) {
+  case inputs {
+    [input, ..] -> #(input, [])
+    [] -> #("", [])
   }
 }
 
-/// Set a custom error message for a field decoder, overwriting the previous
-/// error message if there is one at this point in the decoder, doing nothing
-/// if the decoder is successful.
+/// A parser for a whole number.
 ///
-pub fn message(
-  result: fn(a) -> Result(b, String),
-  message: String,
-) -> fn(a) -> Result(b, String) {
-  fn(data) {
-    case result(data) {
-      Ok(value) -> Ok(value)
-      Error(_) -> Error(message)
-    }
+/// Returns a `MustBeInt` error if the input cannot be parsed as a valid int.
+///
+/// ## Example
+///
+/// ```gleam
+/// let schema = {
+///   use age <- form.field("age", {
+///     form.parse_int
+///     |> form.check_int_more_than(0)
+///   })
+///   form.success(Person(age:))
+/// }
+/// ```
+///
+pub const parse_int: Parser(Int) = Parser(int_parser)
+
+fn int_parser(inputs: List(String)) -> #(Int, List(FieldError)) {
+  use input <- value_parser(inputs, 0, MustBeInt)
+  int.parse(input)
+}
+
+fn value_parser(
+  inputs: List(String),
+  zero: t,
+  error: FieldError,
+  next: fn(String) -> Result(t, e),
+) -> #(t, List(FieldError)) {
+  case inputs {
+    [input, ..] ->
+      case next(input) {
+        Ok(t) -> #(t, [])
+        Error(_) -> #(zero, [error])
+      }
+    _ -> #(zero, [error])
   }
 }
 
-/// Decode the field value as a string.
+/// A parser for floating point numbers.
 ///
-/// # Examples
+/// Returns a `MustBeFloat` error if the input cannot be parsed as a float.
+///
+/// ## Example
 ///
 /// ```gleam
-/// string("hello")
-/// # -> Ok("hello")
+/// let schema = {
+///   use price <- form.field("price", {
+///     form.parse_float
+///     |> form.check_float_more_than(0.0)
+///   })
+///   form.success(Product(price:))
+/// }
 /// ```
 ///
-pub fn string(input: String) -> Result(String, String) {
-  Ok(string.trim(input))
+pub const parse_float: Parser(Float) = Parser(float_parser)
+
+fn float_parser(inputs: List(String)) -> #(Float, List(FieldError)) {
+  use input <- value_parser(inputs, 0.0, MustBeFloat)
+  float.parse(input)
 }
 
-/// Decode all the values for a field as a given type. This is useful with the
-/// `multifield` function when there are multiple inputs with the same name in
-/// the form.
+/// A parser that validates email addresses.
 ///
-/// # Examples
+/// Performs basic email validation by checking for the presence of an "@" symbol.
+/// Returns a `MustBeEmail` error if the input is not a valid email format.
 ///
-/// ```gleam
-/// int("123")
-/// # -> Ok(123)
-/// ```
+/// ## Example
 ///
 /// ```gleam
-/// int("ok")
-/// # -> Error("Must be a whole number")
+/// let schema = {
+///   use email <- form.field("email", form.parse_email)
+///   form.success(Person(email:))
+/// }
 /// ```
 ///
-pub fn list(
-  of decoder: fn(String) -> Result(t, String),
-) -> fn(List(String)) -> Result(List(t), String) {
-  list.try_map(_, decoder)
-}
+pub const parse_email: Parser(String) = Parser(email_parser)
 
-/// Decode the field value as an int.
-///
-/// # Examples
-///
-/// ```gleam
-/// int("123")
-/// # -> Ok(123)
-/// ```
-///
-/// ```gleam
-/// int("ok")
-/// # -> Error("Must be a whole number")
-/// ```
-///
-pub fn int(input: String) -> Result(Int, String) {
-  case int.parse(input) {
-    Ok(value) -> Ok(value)
-    Error(_) -> Error("Must be a whole number")
-  }
-}
-
-/// Decode the field value as a float.
-///
-/// The input value must have a decimal point.
-///
-/// # Examples
-///
-/// ```gleam
-/// float("12.34")
-/// # -> Ok(123)
-/// ```
-///
-/// ```gleam
-/// float("1")
-/// # -> Error("Must be a number with a decimal point")
-/// ```
-///
-/// ```gleam
-/// float("ok")
-/// # -> Error("Must be a number with a decimal point")
-/// ```
-///
-pub fn float(input: String) -> Result(Float, String) {
-  case float.parse(input) {
-    Ok(value) -> Ok(value)
-    Error(_) -> Error("Must be a number with a decimal point")
-  }
-}
-
-/// Decode the field value as a float.
-///
-/// The decimal point is optional.
-///
-/// # Examples
-///
-/// ```gleam
-/// number("12.34")
-/// # -> Ok(123)
-/// ```
-///
-/// ```gleam
-/// number("1")
-/// # -> Ok(1.0)
-/// ```
-///
-/// ```gleam
-/// number("ok")
-/// # -> Error("Must be a number")
-/// ```
-///
-pub fn number(input: String) -> Result(Float, String) {
-  let result =
-    int.parse(input)
-    |> result.map(int.to_float)
-    |> result.lazy_or(fn() { float.parse(input) })
-  case result {
-    Ok(value) -> Ok(value)
-    Error(_) -> Error("Must be a number")
-  }
-}
-
-/// Decode the field value as a bool.
-///
-/// The input value must be "on" to be considered true as this is the value
-/// that HTML checkboxes use when checked.
-///
-/// # Examples
-///
-/// ```gleam
-/// bool("on")
-/// # -> Ok(True)
-/// ```
-///
-/// ```gleam
-/// bool("true")
-/// # -> Ok(False)
-/// ```
-///
-/// ```gleam
-/// bool("")
-/// # -> Ok(False)
-/// ```
-///
-pub fn bool(input: String) -> Result(Bool, String) {
-  case input {
-    "on" -> Ok(True)
-    _ -> Ok(False)
-  }
-}
-
-/// Assert that the string input must not be empty, returning an error if it
-/// is.
-///
-/// # Examples
-///
-/// ```gleam
-/// must_not_be_empty("Hello")
-/// # -> Ok("Hello")
-/// ```
-///
-/// ```gleam
-/// must_not_be_empty("")
-/// # -> Error("Must not be blank")
-/// ```
-///
-pub fn must_not_be_empty(input: String) -> Result(String, String) {
-  case input {
-    "" -> Error("Must not be blank")
-    _ -> Ok(input)
-  }
-}
-
-/// Assert that the string input looks like an email address.
-///
-/// It could still be an invalid email address even if it looks like one. To
-/// validate an email address is valid you will need to send an email to it and
-/// ensure your user receives it.
-///
-/// # Examples
-///
-/// ```gleam
-/// must_be_an_email("hello@example.com")
-/// # -> Ok("hello@example.com")
-/// ```
-///
-/// ```gleam
-/// must_be_an_email("Something")
-/// # -> Error("Must be an email")
-/// ```
-///
-pub fn must_be_an_email(input: String) -> Result(String, String) {
-  case string.split(input, "@") {
-    [_, _] -> Ok(input)
-    _ -> Error("Must be an email")
-  }
-}
-
-/// Assert that the int input is greater than the given minimum.
-///
-/// It could still be an invalid email address even if it looks like one. To
-/// validate an email address is valid you will need to send an email to it and
-/// ensure your user receives it.
-///
-/// # Examples
-///
-/// ```gleam
-/// let check = must_be_greater_int_than(10)
-/// check(12)
-/// # -> Ok(12)
-/// ```
-///
-/// ```gleam
-/// let check = must_be_greater_int_than(10)
-/// check(2)
-/// # -> Error("Must be greater than 10")
-/// ```
-///
-pub fn must_be_greater_int_than(minimum: Int) -> fn(Int) -> Result(Int, String) {
-  fn(input) {
-    case input > minimum {
-      True -> Ok(input)
-      False -> Error("Must be greater than " <> int.to_string(minimum))
-    }
-  }
-}
-
-/// Assert that the int input is greater than the given minimum.
-///
-/// It could still be an invalid email address even if it looks like one. To
-/// validate an email address is valid you will need to send an email to it and
-/// ensure your user receives it.
-///
-/// # Examples
-///
-/// ```gleam
-/// let check = must_be_lesser_int_than(10)
-/// check(12)
-/// # -> Ok(12)
-/// ```
-///
-/// ```gleam
-/// let check = must_be_lesser_int_than(10)
-/// check(2)
-/// # -> Error("Must be less than 10")
-/// ```
-///
-pub fn must_be_lesser_int_than(maximum: Int) -> fn(Int) -> Result(Int, String) {
-  fn(input) {
-    case input < maximum {
-      True -> Ok(input)
-      False -> Error("Must be less than " <> int.to_string(maximum))
-    }
-  }
-}
-
-/// Assert that the float input is greater than the given minimum.
-///
-/// It could still be an invalid email address even if it looks like one. To
-/// validate an email address is valid you will need to send an email to it and
-/// ensure your user receives it.
-///
-/// # Examples
-///
-/// ```gleam
-/// let check = must_be_greater_float_than(3.3)
-/// check(4.1)
-/// # -> Ok(3.3)
-/// ```
-///
-/// ```gleam
-/// let check = must_be_greater_float_than(3.3)
-/// check(2.0)
-/// # -> Error("Must be greater than 3.3")
-/// ```
-///
-pub fn must_be_greater_float_than(
-  minimum: Float,
-) -> fn(Float) -> Result(Float, String) {
-  fn(input) {
-    case input >. minimum {
-      True -> Ok(input)
-      False -> Error("Must be greater than " <> float.to_string(minimum))
-    }
-  }
-}
-
-/// Assert that the float input is greater than the given minimum.
-///
-/// It could still be an invalid email address even if it looks like one. To
-/// validate an email address is valid you will need to send an email to it and
-/// ensure your user receives it.
-///
-/// # Examples
-///
-/// ```gleam
-/// let check = must_be_lesser_float_than(10)
-/// check(12)
-/// # -> Ok(12)
-/// ```
-///
-/// ```gleam
-/// let check = must_be_lesser_float_than(10)
-/// check(2)
-/// # -> Error("Must be less than 10")
-/// ```
-///
-pub fn must_be_lesser_float_than(
-  maximum: Float,
-) -> fn(Float) -> Result(Float, String) {
-  fn(input) {
-    case input <. maximum {
-      True -> Ok(input)
-      False -> Error("Must be less than " <> float.to_string(maximum))
-    }
-  }
-}
-
-/// Assert that the bool input is true. This is expected to be used with
-/// checkboxes and has an error message that reflects that.
-///
-/// # Examples
-///
-/// ```gleam
-/// must_be_accepted(True)
-/// # -> Ok(True)
-/// ```
-///
-/// ```gleam
-/// must_be_accepted(False)
-/// # -> Error("Must be accepted")
-/// ```
-///
-pub fn must_be_accepted(input: Bool) -> Result(Bool, String) {
-  case input {
+fn email_parser(inputs: List(String)) -> #(String, List(FieldError)) {
+  use input <- value_parser(inputs, "", MustBeEmail)
+  case string.contains(input, "@") {
     True -> Ok(input)
-    False -> Error("Must be accepted")
+    False -> Error(Nil)
   }
 }
 
-/// Assert that the bool input is true. This is expected to be used with
-/// checkboxes and has an error message that reflects that.
+/// A parser for phone numbers.
 ///
-/// # Examples
+/// Phone numbers are checked with these rules:
+/// - Must be between 7 and 15 characters after removing formatting
+/// - Must contain only digits after removing formatting characters
+/// - `+` may optionally be the first character.
+/// - `-`, ` `, `(`, and `)` are permitted, but are removed.
+///
+/// Returns a `MustBePhoneNumber` error if the input doesn't satisfy these
+/// rules.
+///
+/// ## Example
 ///
 /// ```gleam
-/// let check = must_equal(42, "Must be the answer to everything")
-/// check(42)
-/// # -> Ok(42)
+/// let schema = {
+///   use phone <- form.field("phone", form.parse_phone_number)
+///   form.success(Person(phone:))
+/// }
 /// ```
+///
+pub const parse_phone_number: Parser(String) = Parser(phone_number_parser)
+
+fn phone_number_parser(inputs: List(String)) -> #(String, List(FieldError)) {
+  use input <- value_parser(inputs, "", MustBePhoneNumber)
+  phone_number_loop(input, "", 0)
+}
+
+fn phone_number_loop(
+  input: String,
+  tel: String,
+  size: Int,
+) -> Result(String, Nil) {
+  case input {
+    _ if size > 15 -> Error(Nil)
+    "" if size > 7 -> Ok(tel)
+    "" -> Error(Nil)
+
+    "+" <> input if tel == "" -> phone_number_loop(input, tel, size)
+    "-" <> input | "(" <> input | ")" <> input | " " <> input if tel != "" ->
+      phone_number_loop(input, tel, size)
+
+    "0" as d <> input
+    | "1" as d <> input
+    | "2" as d <> input
+    | "3" as d <> input
+    | "4" as d <> input
+    | "5" as d <> input
+    | "6" as d <> input
+    | "7" as d <> input
+    | "8" as d <> input
+    | "9" as d <> input -> phone_number_loop(input, tel <> d, size + 1)
+
+    _ -> Error(Nil)
+  }
+}
+
+/// A parser for URLs.
+///
+/// Uses the `gleam/uri` module to parse and validate URLs. Returns a
+/// `MustBeUrl` error if the input cannot be parsed as a valid URI.
+///
+/// ## Example
 ///
 /// ```gleam
-/// let check = must_equal(42, "Must be the answer to everything")
-/// check(2)
-/// # -> Error("Must be the answer to everything")
+/// let schema = {
+///   use website <- form.field("website", form.parse_url)
+///   form.success(Company(website:))
+/// }
 /// ```
 ///
-pub fn must_equal(
-  expected: t,
-  because error_message: String,
-) -> fn(t) -> Result(t, String) {
-  fn(input) {
-    case input == expected {
-      True -> Ok(input)
-      False -> Error(error_message)
+pub const parse_url: Parser(uri.Uri) = Parser(url_parser)
+
+fn url_parser(inputs: List(String)) -> #(uri.Uri, List(FieldError)) {
+  use input <- value_parser(inputs, uri.empty, MustBeUrl)
+  uri.parse(input)
+}
+
+/// A parser for calendar dates.
+///
+/// Parses dates in YYYY-MM-DD format and returns a `calendar.Date` value.
+/// Returns a `MustBeDate` error if the input cannot be parsed as a valid date.
+///
+/// ## Example
+///
+/// ```gleam
+/// let schema = {
+///   use birth_date <- form.field("birth_date", form.parse_date)
+///   form.success(Person(birth_date:))
+/// }
+/// ```
+///
+pub const parse_date: Parser(calendar.Date) = Parser(date_parser)
+
+fn date_parser(inputs: List(String)) -> #(calendar.Date, List(FieldError)) {
+  let zero = calendar.Date(1970, calendar.January, 1)
+  use input <- value_parser(inputs, zero, MustBeDate)
+  case string.split(input, "-") {
+    [year, month, day] -> {
+      use year <- result.try(int.parse(year))
+      use month <- result.try(int.parse(month))
+      use day <- result.try(int.parse(day))
+      use month <- result.try(calendar.month_from_int(month))
+      let date = calendar.Date(year, month, day)
+      case calendar.is_valid_date(date) {
+        True -> Ok(date)
+        False -> Error(Nil)
+      }
     }
+    _ -> Error(Nil)
   }
 }
 
-/// Assert that the string is longer than the given length.
+/// A parser for time values.
 ///
-/// # Examples
+/// Parses times in HH:MM:SS or HH:MM format and returns a `calendar.TimeOfDay`
+/// value.
+/// Returns a `MustBeTime` error if the input cannot be parsed as a valid time.
 ///
-/// ```gleam
-/// let check = must_be_string_longer_than(4)
-/// check("hello")
-/// // -> Ok("hello")
-/// ```
+/// ## Example
 ///
 /// ```gleam
-/// let check = must_be_string_longer_than(2)
-/// check("hi")
-/// // -> Error("Must be longer than 2 characters")
+/// let schema = {
+///   use start_time <- form.field("start_time", form.parse_time)
+///   form.success(Event(start_time:))
+/// }
 /// ```
 ///
-pub fn must_be_string_longer_than(
-  length: Int,
-) -> fn(String) -> Result(String, String) {
-  fn(input) {
-    case string.length(input) > length {
-      True -> Ok(input)
-      False ->
-        Error("Must be longer than " <> int.to_string(length) <> " characters")
+pub const parse_time: Parser(calendar.TimeOfDay) = Parser(time_parser)
+
+fn time_parser(inputs: List(String)) -> #(calendar.TimeOfDay, List(FieldError)) {
+  use input <- value_parser(inputs, calendar.TimeOfDay(0, 0, 0, 0), MustBeTime)
+  case string.split(input, ":") {
+    [hour, minute, second] -> {
+      parse_time_parts(hour, minute, second)
     }
-  }
-}
-
-/// Assert that the string is shorter than the given length.
-///
-/// # Examples
-///
-/// ```gleam
-/// let check = must_be_string_shorter_than(3)
-/// check("hi")
-/// // -> Ok("hi")
-/// ```
-///
-/// ```gleam
-/// let check = must_be_string_shorter_than(5)
-/// check("hello")
-/// // -> Error("Must be shorter than 5 characters")
-/// ```
-///
-pub fn must_be_string_shorter_than(
-  length: Int,
-) -> fn(String) -> Result(String, String) {
-  fn(input) {
-    case string.length(input) < length {
-      True -> Ok(input)
-      False ->
-        Error("Must be shorter than " <> int.to_string(length) <> " characters")
+    [hour, minute] -> {
+      parse_time_parts(hour, minute, "0")
     }
+    _ -> Error(Nil)
   }
 }
 
-//
-// Helper functions
-//
+/// A parser for datetime values.
+///
+/// Parses datetime strings in HTML datetime-local format (e.g.
+/// "2023-12-25T14:30" or "2023-12-25T14:30:00")
+/// and returns a tuple of `(calendar.Date, calendar.TimeOfDay)`.
+///
+/// Returns a `MustBeDateTime` error if the input cannot be parsed as a valid
+/// datetime.
+///
+/// ## Example
+///
+/// ```gleam
+/// let schema = {
+///   use created_at <- form.field("created_at", form.parse_date_time)
+///   form.success(Event(created_at:))
+/// }
+/// ```
+///
+pub const parse_date_time: Parser(#(calendar.Date, calendar.TimeOfDay)) = Parser(
+  date_time_parser,
+)
 
-fn get_values(form: FormValidator(output)) -> Dict(String, List(String)) {
-  case form {
-    InvalidForm(values, _) -> values
-    ValidForm(values, _) -> values
+fn date_time_parser(
+  inputs: List(String),
+) -> #(#(calendar.Date, calendar.TimeOfDay), List(FieldError)) {
+  let zero = #(
+    calendar.Date(1970, calendar.January, 1),
+    calendar.TimeOfDay(0, 0, 0, 0),
+  )
+  use input <- value_parser(inputs, zero, MustBeDateTime)
+  case string.split_once(input, "T") {
+    Ok(#(date_part, time_part)) -> {
+      case string.split(date_part, "-"), string.split(time_part, ":") {
+        [year, month, day], [hour, minute] -> {
+          parse_date_time_parts(year, month, day, hour, minute, "0")
+        }
+        [year, month, day], [hour, minute, second] -> {
+          parse_date_time_parts(year, month, day, hour, minute, second)
+        }
+        _, _ -> Error(Nil)
+      }
+    }
+    Error(_) -> Error(Nil)
   }
+}
+
+fn parse_date_time_parts(
+  year: String,
+  month: String,
+  day: String,
+  hour: String,
+  minute: String,
+  second: String,
+) -> Result(#(calendar.Date, calendar.TimeOfDay), Nil) {
+  use year <- result.try(int.parse(year))
+  use month <- result.try(int.parse(month))
+  use day <- result.try(int.parse(day))
+  use hour <- result.try(int.parse(hour))
+  use minute <- result.try(int.parse(minute))
+  use second <- result.try(int.parse(second))
+  use month <- result.try(calendar.month_from_int(month))
+  let date = calendar.Date(year, month, day)
+  let time = calendar.TimeOfDay(hour, minute, second, 0)
+  case calendar.is_valid_date(date) && calendar.is_valid_time_of_day(time) {
+    True -> Ok(#(date, time))
+    False -> Error(Nil)
+  }
+}
+
+fn parse_time_parts(
+  hour: String,
+  minute: String,
+  second: String,
+) -> Result(calendar.TimeOfDay, Nil) {
+  use hour <- result.try(int.parse(hour))
+  use minute <- result.try(int.parse(minute))
+  use second <- result.try(int.parse(second))
+  let time = calendar.TimeOfDay(hour, minute, second, 0)
+  case calendar.is_valid_time_of_day(time) {
+    True -> Ok(time)
+    False -> Error(Nil)
+  }
+}
+
+/// A parser for colour values.
+///
+/// Parses color strings in HTML hex format (e.g., "#FF0000", "#00ff00")
+/// and returns the hex color string.
+///
+/// Returns a `MustBeColour` error if the input is not a valid hex color.
+///
+/// ## Example
+///
+/// ```gleam
+/// let schema = {
+///   use background_color <- form.field("background_color", form.parse_colour)
+///   form.success(Theme(background_color:))
+/// }
+/// ```
+///
+pub const parse_colour: Parser(String) = Parser(colour_parser)
+
+fn colour_parser(inputs: List(String)) -> #(String, List(FieldError)) {
+  use input <- value_parser(inputs, "", MustBeColour)
+  use <- bool.guard(string.byte_size(input) != 7, Error(Nil))
+  case input {
+    "#" <> hex -> {
+      case bit_array.base16_decode(hex) {
+        Ok(_) -> Ok(input)
+        _ -> Error(Nil)
+      }
+    }
+    _ -> Error(Nil)
+  }
+}
+
+// TODO: document
+// TODO: test
+// TODO: implement
+pub fn check(
+  parser: Parser(b),
+  checker: fn(b) -> Result(b, String),
+) -> Parser(b) {
+  check_map(parser, CustomError, checker)
+}
+
+fn check_map(
+  parser: Parser(b),
+  map: fn(error) -> FieldError,
+  checker: fn(b) -> Result(b, error),
+) -> Parser(b) {
+  Parser(fn(inputs) {
+    let #(value, errors) = parser.run(inputs)
+    let errors = case checker(value) {
+      Error(error) -> [map(error), ..errors]
+      Ok(_) -> errors
+    }
+    #(value, errors)
+  })
+}
+
+// TODO: document
+// TODO: test
+// TODO: implement
+pub fn check_not_empty(parser: Parser(String)) -> Parser(String) {
+  check_map(parser, fn(x) { x }, fn(x) {
+    case x {
+      "" -> Error(MustBePresent)
+      _ -> Ok(x)
+    }
+  })
+}
+
+// TODO: document
+// TODO: test
+// TODO: implement
+pub fn check_int_less_than(parser: Parser(Int), limit: Int) -> Parser(Int) {
+  check_map(parser, fn(x) { x }, fn(x) {
+    case x < limit {
+      True -> Ok(x)
+      _ -> Error(MustBeIntLessThan(limit))
+    }
+  })
+}
+
+// TODO: document
+// TODO: test
+pub fn check_int_more_than(parser: Parser(Int), limit: Int) -> Parser(Int) {
+  check_map(parser, fn(x) { x }, fn(x) {
+    case x > limit {
+      True -> Ok(x)
+      _ -> Error(MustBeIntMoreThan(limit))
+    }
+  })
+}
+
+// TODO: document
+// TODO: test
+/// Translates `FieldError`s into strings suitable for showing to the user.
+///
+/// ## Examples
+///
+/// ```gleam
+/// assert en_us(MustBeColour) == "must be a hex colour code"
+/// ```
+///
+pub fn en_gb(error: FieldError) -> String {
+  case error {
+    MustBeAccepted -> "must be accepted"
+    MustBeColour -> "must be a hex colour code"
+    MustBeDate -> "must be a date"
+    MustBeDateTime -> "must be a date and time"
+    MustBeEmail -> "must be an email"
+    MustBeFloat -> "must be a number"
+    MustBeFloatLessThan(limit:) ->
+      "must be less than " <> float.to_string(limit)
+    MustBeFloatMoreThan(limit:) ->
+      "must be more than " <> float.to_string(limit)
+    MustBeInt -> "must be a whole number"
+    MustBeIntLessThan(limit:) -> "must be less than " <> int.to_string(limit)
+    MustBeIntMoreThan(limit:) -> "must be more than " <> int.to_string(limit)
+    MustBePhoneNumber -> "must be a phone number"
+    MustBePresent -> "must not be blank"
+    MustBeStringLengthLessThan(limit:) ->
+      "must be less than " <> int.to_string(limit) <> " characters"
+    MustBeStringLengthMoreThan(limit:) ->
+      "must be more than " <> int.to_string(limit) <> " characters"
+    MustBeTime -> "must be a time"
+    MustBeUrl -> "must be a URL"
+    MustMatch -> "must match"
+    CustomError(message:) -> message
+  }
+}
+
+// TODO: test
+/// Translates `FieldError`s into strings suitable for showing to the user.
+///
+/// The same as `en_gb`, but with Americanised spelling of the word "color".
+///
+/// ## Examples
+///
+/// ```gleam
+/// assert en_us(MustBeColour) == "must be a hex color code"
+/// ```
+///
+pub fn en_us(error: FieldError) -> String {
+  case error {
+    MustBeColour -> "must be a hex color code"
+    _ -> en_gb(error)
+  }
+}
+
+// TODO: test
+/// Add a string value to the form.
+///
+/// You may want to use this to pre-fill a form with some already-saved
+/// values for the user to edit.
+///
+pub fn add_string(
+  form: Form(model),
+  field: String,
+  value: String,
+) -> Form(model) {
+  Form(..form, values: [#(field, value), ..form.values])
+}
+
+// TODO: document
+/// Add an int value to the form.
+///
+/// You may want to use this to pre-fill a form with some already-saved
+/// values for the user to edit.
+///
+pub fn add_int(form: Form(model), field: String, value: Int) -> Form(model) {
+  Form(..form, values: [#(field, int.to_string(value)), ..form.values])
+}
+
+// TODO: test
+/// Get the error messages for a field, if there are any.
+///
+/// The text is formatted using the translater function given with the
+/// `langauge` function. The default translater is `en_gb`.
+///
+pub fn error_text(form: Form(model), name: String) -> List(String) {
+  form.errors
+  |> list.key_filter(name)
+  |> list.flat_map(list.map(_, form.translator))
+}
+
+/// Get all the form.
+///
+/// If the `run` function or the `add_error` function have not been called then
+/// the form is clean and won't have any errors yet.
+///
+pub fn errors(form: Form(model), name: String) -> List(FieldError) {
+  form.errors
+  |> list.key_filter(name)
+  |> list.flatten
+}
+
+/// Add an error to one of the fields of the form.
+///
+/// This function may be useful if you have some additional validation that runs
+/// outside of the form schema and you want to surface the error messages to the
+/// user via the form.
+///
+pub fn add_error(
+  form: Form(model),
+  name: String,
+  error: FieldError,
+) -> Form(model) {
+  Form(..form, errors: [#(name, [error]), ..form.errors])
 }
