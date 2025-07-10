@@ -347,3 +347,149 @@ pub fn parse_time_test() {
     |> form.run
     == Error(form |> form.add_error("data", form.MustBeTime))
 }
+
+pub fn parse_date_time_test() {
+  let form =
+    form.new({
+      use x <- form.field("data", form.parse_date_time)
+      form.success(x)
+    })
+  assert form
+    |> form.add_string("data", "2023-12-25T14:30")
+    |> form.run
+    == Ok(#(
+      calendar.Date(2023, calendar.December, 25),
+      calendar.TimeOfDay(14, 30, 0, 0),
+    ))
+  assert form
+    |> form.add_string("data", "2023-12-25T14:30:45")
+    |> form.run
+    == Ok(#(
+      calendar.Date(2023, calendar.December, 25),
+      calendar.TimeOfDay(14, 30, 45, 0),
+    ))
+  assert form
+    |> form.add_string("data", "2024-02-29T23:59:59")
+    |> form.run
+    == Ok(#(
+      calendar.Date(2024, calendar.February, 29),
+      calendar.TimeOfDay(23, 59, 59, 0),
+    ))
+  assert form
+    |> form.add_string("data", "1990-01-01T00:00")
+    |> form.run
+    == Ok(#(
+      calendar.Date(1990, calendar.January, 1),
+      calendar.TimeOfDay(0, 0, 0, 0),
+    ))
+  assert form
+    |> form.add_string("data", "not-a-datetime")
+    |> form.run
+    == Error(
+      form
+      |> form.add_string("data", "not-a-datetime")
+      |> form.add_error("data", form.MustBeDateTime),
+    )
+  assert form
+    |> form.add_string("data", "2023-12-25")
+    |> form.run
+    == Error(
+      form
+      |> form.add_string("data", "2023-12-25")
+      |> form.add_error("data", form.MustBeDateTime),
+    )
+  assert form
+    |> form.add_string("data", "14:30:00")
+    |> form.run
+    == Error(
+      form
+      |> form.add_string("data", "14:30:00")
+      |> form.add_error("data", form.MustBeDateTime),
+    )
+  assert form
+    |> form.add_string("data", "2023-13-25T14:30")
+    |> form.run
+    == Error(
+      form
+      |> form.add_string("data", "2023-13-25T14:30")
+      |> form.add_error("data", form.MustBeDateTime),
+    )
+  assert form
+    |> form.add_string("data", "2023-12-25T25:30")
+    |> form.run
+    == Error(
+      form
+      |> form.add_string("data", "2023-12-25T25:30")
+      |> form.add_error("data", form.MustBeDateTime),
+    )
+  assert form
+    |> form.run
+    == Error(form |> form.add_error("data", form.MustBeDateTime))
+}
+
+pub fn parse_colour_test() {
+  let form =
+    form.new({
+      use x <- form.field("data", form.parse_colour)
+      form.success(x)
+    })
+  assert form
+    |> form.add_string("data", "#FF0000")
+    |> form.run
+    == Ok("#FF0000")
+  assert form
+    |> form.add_string("data", "#00ff00")
+    |> form.run
+    == Ok("#00ff00")
+  assert form
+    |> form.add_string("data", "#0000FF")
+    |> form.run
+    == Ok("#0000FF")
+  assert form
+    |> form.add_string("data", "#123abc")
+    |> form.run
+    == Ok("#123abc")
+  assert form
+    |> form.add_string("data", "#000000")
+    |> form.run
+    == Ok("#000000")
+  assert form
+    |> form.add_string("data", "#FFFFFF")
+    |> form.run
+    == Ok("#FFFFFF")
+  assert form
+    |> form.add_string("data", "not-a-color")
+    |> form.run
+    == Error(
+      form
+      |> form.add_string("data", "not-a-color")
+      |> form.add_error("data", form.MustBeColour),
+    )
+  assert form
+    |> form.add_string("data", "FF0000")
+    |> form.run
+    == Error(
+      form
+      |> form.add_string("data", "FF0000")
+      |> form.add_error("data", form.MustBeColour),
+    )
+  assert form
+    |> form.add_string("data", "#FF00")
+    |> form.run
+    == Error(
+      form
+      |> form.add_string("data", "#FF00")
+      |> form.add_error("data", form.MustBeColour),
+    )
+  assert form
+    |> form.add_string("data", "#GG0000")
+    |> form.run
+    == Error(
+      form
+      |> form.add_string("data", "#GG0000")
+      |> form.add_error("data", form.MustBeColour),
+    )
+  assert form
+    |> form.run
+    == Error(form |> form.add_error("data", form.MustBeColour))
+}

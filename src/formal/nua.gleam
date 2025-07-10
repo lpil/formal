@@ -1,3 +1,5 @@
+import gleam/bit_array
+import gleam/bool
 import gleam/float
 import gleam/int
 import gleam/list
@@ -48,9 +50,7 @@ pub type FieldError {
   MustBeUrl
   MustBeDate
   MustBeTime
-  // TODO: parser
   MustBeDateTime
-  // TODO: parser
   MustBeColour
   // TODO: parser
   MustBeStringLengthMoreThan(limit: Int)
@@ -175,8 +175,26 @@ pub fn success(value: model) -> Schema(model) {
   Schema(fn(_, errors) { #(value, errors) })
 }
 
-// TODO: document
+/// A parser that applies another parser to each input value in a list.
+///
+/// Takes a parser for a single value and returns a parser that can handle
+/// multiple values of the same type. This is useful for form fields that
+/// can have multiple values, such as checkboxes, multi-selects, or just
+/// repeated inputs of other types.
+///
+/// ## Example
+///
+/// ```gleam
+/// let schema = {
+///   use tags <- form.field("tag", form.parse_list(form.parse_string))
+///   form.success(Article(tags:))
+/// }
+/// ```
+///
+/// This would parse multiple "tag" fields into a list of strings.
+///
 // TODO: test
+
 pub fn parse_list(parser: Parser(output)) -> Parser(List(output)) {
   Parser(fn(inputs) {
     let #(values, errors) =
@@ -417,10 +435,10 @@ fn date_parser(inputs: List(String)) -> #(calendar.Date, List(FieldError)) {
   let zero = calendar.Date(1970, calendar.January, 1)
   use input <- value_parser(inputs, zero, MustBeDate)
   case string.split(input, "-") {
-    [year_str, month_str, day_str] -> {
-      use year <- result.try(int.parse(year_str))
-      use month <- result.try(int.parse(month_str))
-      use day <- result.try(int.parse(day_str))
+    [year, month, day] -> {
+      use year <- result.try(int.parse(year))
+      use month <- result.try(int.parse(month))
+      use day <- result.try(int.parse(day))
       use month <- result.try(calendar.month_from_int(month))
       let date = calendar.Date(year, month, day)
       case calendar.is_valid_date(date) {
@@ -452,28 +470,129 @@ pub const parse_time: Parser(calendar.TimeOfDay) = Parser(time_parser)
 fn time_parser(inputs: List(String)) -> #(calendar.TimeOfDay, List(FieldError)) {
   use input <- value_parser(inputs, calendar.TimeOfDay(0, 0, 0, 0), MustBeTime)
   case string.split(input, ":") {
-    [hour_str, minute_str, second_str] -> {
-      parse_time_parts(hour_str, minute_str, second_str)
+    [hour, minute, second] -> {
+      parse_time_parts(hour, minute, second)
     }
-    [hour_str, minute_str] -> {
-      parse_time_parts(hour_str, minute_str, "0")
+    [hour, minute] -> {
+      parse_time_parts(hour, minute, "0")
     }
     _ -> Error(Nil)
   }
 }
 
+/// A parser for datetime values.
+///
+/// Parses datetime strings in HTML datetime-local format (e.g.
+/// "2023-12-25T14:30" or "2023-12-25T14:30:00")
+/// and returns a tuple of `(calendar.Date, calendar.TimeOfDay)`.
+///
+/// Returns a `MustBeDateTime` error if the input cannot be parsed as a valid
+/// datetime.
+///
+/// ## Example
+///
+/// ```gleam
+/// let schema = {
+///   use created_at <- form.field("created_at", form.parse_date_time)
+///   form.success(Event(created_at:))
+/// }
+/// ```
+///
+pub const parse_date_time: Parser(#(calendar.Date, calendar.TimeOfDay)) = Parser(
+  date_time_parser,
+)
+
+fn date_time_parser(
+  inputs: List(String),
+) -> #(#(calendar.Date, calendar.TimeOfDay), List(FieldError)) {
+  let zero = #(
+    calendar.Date(1970, calendar.January, 1),
+    calendar.TimeOfDay(0, 0, 0, 0),
+  )
+  use input <- value_parser(inputs, zero, MustBeDateTime)
+  case string.split_once(input, "T") {
+    Ok(#(date_part, time_part)) -> {
+      case string.split(date_part, "-"), string.split(time_part, ":") {
+        [year, month, day], [hour, minute] -> {
+          parse_date_time_parts(year, month, day, hour, minute, "0")
+        }
+        [year, month, day], [hour, minute, second] -> {
+          parse_date_time_parts(year, month, day, hour, minute, second)
+        }
+        _, _ -> Error(Nil)
+      }
+    }
+    Error(_) -> Error(Nil)
+  }
+}
+
+fn parse_date_time_parts(
+  year: String,
+  month: String,
+  day: String,
+  hour: String,
+  minute: String,
+  second: String,
+) -> Result(#(calendar.Date, calendar.TimeOfDay), Nil) {
+  use year <- result.try(int.parse(year))
+  use month <- result.try(int.parse(month))
+  use day <- result.try(int.parse(day))
+  use hour <- result.try(int.parse(hour))
+  use minute <- result.try(int.parse(minute))
+  use second <- result.try(int.parse(second))
+  use month <- result.try(calendar.month_from_int(month))
+  let date = calendar.Date(year, month, day)
+  let time = calendar.TimeOfDay(hour, minute, second, 0)
+  case calendar.is_valid_date(date) && calendar.is_valid_time_of_day(time) {
+    True -> Ok(#(date, time))
+    False -> Error(Nil)
+  }
+}
+
 fn parse_time_parts(
-  hour_str: String,
-  minute_str: String,
-  second_str: String,
+  hour: String,
+  minute: String,
+  second: String,
 ) -> Result(calendar.TimeOfDay, Nil) {
-  use hour <- result.try(int.parse(hour_str))
-  use minute <- result.try(int.parse(minute_str))
-  use second <- result.try(int.parse(second_str))
+  use hour <- result.try(int.parse(hour))
+  use minute <- result.try(int.parse(minute))
+  use second <- result.try(int.parse(second))
   let time = calendar.TimeOfDay(hour, minute, second, 0)
   case calendar.is_valid_time_of_day(time) {
     True -> Ok(time)
     False -> Error(Nil)
+  }
+}
+
+/// A parser for colour values.
+///
+/// Parses color strings in HTML hex format (e.g., "#FF0000", "#00ff00")
+/// and returns the hex color string.
+///
+/// Returns a `MustBeColour` error if the input is not a valid hex color.
+///
+/// ## Example
+///
+/// ```gleam
+/// let schema = {
+///   use background_color <- form.field("background_color", form.parse_colour)
+///   form.success(Theme(background_color:))
+/// }
+/// ```
+///
+pub const parse_colour: Parser(String) = Parser(colour_parser)
+
+fn colour_parser(inputs: List(String)) -> #(String, List(FieldError)) {
+  use input <- value_parser(inputs, "", MustBeColour)
+  use <- bool.guard(string.byte_size(input) != 7, Error(Nil))
+  case input {
+    "#" <> hex -> {
+      case bit_array.base16_decode(hex) {
+        Ok(_) -> Ok(input)
+        _ -> Error(Nil)
+      }
+    }
+    _ -> Error(Nil)
   }
 }
 
@@ -593,8 +712,12 @@ pub fn en_us(error: FieldError) -> String {
   }
 }
 
-// TODO: document
 // TODO: test
+/// Add a string value to the form.
+///
+/// You may want to use this to pre-fill a form with some already-saved
+/// values for the user to edit.
+///
 pub fn add_string(
   form: Form(model),
   field: String,
@@ -604,12 +727,21 @@ pub fn add_string(
 }
 
 // TODO: document
+/// Add an int value to the form.
+///
+/// You may want to use this to pre-fill a form with some already-saved
+/// values for the user to edit.
+///
 pub fn add_int(form: Form(model), field: String, value: Int) -> Form(model) {
   Form(..form, values: [#(field, int.to_string(value)), ..form.values])
 }
 
-// TODO: document
 // TODO: test
+/// Get the error messages for a field, if there are any.
+///
+/// The text is formatted using the translater function given with the
+/// `langauge` function. The default translater is `en_gb`.
+///
 pub fn error_text(form: Form(model), name: String) -> List(String) {
   form.errors
   |> list.key_filter(name)
@@ -627,8 +759,12 @@ pub fn errors(form: Form(model), name: String) -> List(FieldError) {
   |> list.flatten
 }
 
-// TODO: document
-// TODO: test
+/// Add an error to one of the fields of the form.
+///
+/// This function may be useful if you have some additional validation that runs
+/// outside of the form schema and you want to surface the error messages to the
+/// user via the form.
+///
 pub fn add_error(
   form: Form(model),
   name: String,
