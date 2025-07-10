@@ -54,13 +54,10 @@ pub type FieldError {
   MustBeDateTime
   MustBeColour
   MustBeStringLengthMoreThan(limit: Int)
-  // TODO: parser
   MustBeStringLengthLessThan(limit: Int)
   MustBeIntMoreThan(limit: Int)
   MustBeIntLessThan(limit: Int)
-  // TODO: parser
   MustBeFloatMoreThan(limit: Float)
-  // TODO: parser
   MustBeFloatLessThan(limit: Float)
   // TODO: parser
   MustMatch
@@ -753,6 +750,84 @@ pub fn check_string_length_more_than(
     case string.length(x) > limit {
       True -> Ok(x)
       _ -> Error(MustBeStringLengthMoreThan(limit))
+    }
+  })
+}
+
+/// Ensure that a string is less than a specified length.
+///
+/// ## Example
+///
+/// ```gleam
+/// let schema = {
+///   use username <- form.field("username", {
+///     form.parse_string
+///     |> form.check_string_length_less_than(20)
+///   })
+///   form.success(User(username:))
+/// }
+/// ```
+///
+pub fn check_string_length_less_than(
+  parser: Parser(String),
+  limit: Int,
+) -> Parser(String) {
+  check_map(parser, fn(x) { x }, fn(x) {
+    case string.length(x) < limit {
+      True -> Ok(x)
+      _ -> Error(MustBeStringLengthLessThan(limit))
+    }
+  })
+}
+
+/// Ensure that a float is more than a specified limit.
+///
+/// ## Example
+///
+/// ```gleam
+/// let schema = {
+///   use price <- form.field("price", {
+///     form.parse_float
+///     |> form.check_float_more_than(0.0)
+///   })
+///   form.success(Product(price:))
+/// }
+/// ```
+///
+pub fn check_float_more_than(
+  parser: Parser(Float),
+  limit: Float,
+) -> Parser(Float) {
+  check_map(parser, fn(x) { x }, fn(x) {
+    case x >. limit {
+      True -> Ok(x)
+      _ -> Error(MustBeFloatMoreThan(limit))
+    }
+  })
+}
+
+/// Ensure that a float is less than a specified limit.
+///
+/// ## Example
+///
+/// ```gleam
+/// let schema = {
+///   use discount <- form.field("discount", {
+///     form.parse_float
+///     |> form.check_float_less_than(100.0)
+///   })
+///   form.success(Product(discount:))
+/// }
+/// ```
+///
+pub fn check_float_less_than(
+  parser: Parser(Float),
+  limit: Float,
+) -> Parser(Float) {
+  check_map(parser, fn(x) { x }, fn(x) {
+    case x <. limit {
+      True -> Ok(x)
+      _ -> Error(MustBeFloatLessThan(limit))
     }
   })
 }

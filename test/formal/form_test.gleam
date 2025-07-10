@@ -667,3 +667,139 @@ pub fn check_string_length_more_than_test() {
     |> form.run
     == Error(form |> form.add_error("data", form.MustBeStringLengthMoreThan(5)))
 }
+
+pub fn check_string_length_less_than_test() {
+  let form =
+    form.new({
+      use x <- form.field("data", {
+        form.parse_string
+        |> form.check_string_length_less_than(10)
+      })
+      form.success(x)
+    })
+  assert form
+    |> form.add_string("data", "hello")
+    |> form.run
+    == Ok("hello")
+  assert form
+    |> form.add_string("data", "short")
+    |> form.run
+    == Ok("short")
+  assert form
+    |> form.add_string("data", "")
+    |> form.run
+    == Ok("")
+  assert form
+    |> form.add_string("data", "exactly10!")
+    |> form.run
+    == Error(
+      form
+      |> form.add_string("data", "exactly10!")
+      |> form.add_error("data", form.MustBeStringLengthLessThan(10)),
+    )
+  assert form
+    |> form.add_string("data", "this is way too long")
+    |> form.run
+    == Error(
+      form
+      |> form.add_string("data", "this is way too long")
+      |> form.add_error("data", form.MustBeStringLengthLessThan(10)),
+    )
+  assert form
+    |> form.run
+    == Ok("")
+}
+
+pub fn check_float_more_than_test() {
+  let form =
+    form.new({
+      use x <- form.field("data", {
+        form.parse_float
+        |> form.check_float_more_than(10.0)
+      })
+      form.success(x)
+    })
+  assert form
+    |> form.add_string("data", "15.5")
+    |> form.run
+    == Ok(15.5)
+  assert form
+    |> form.add_string("data", "10.1")
+    |> form.run
+    == Ok(10.1)
+  assert form
+    |> form.add_string("data", "100.99")
+    |> form.run
+    == Ok(100.99)
+  assert form
+    |> form.add_string("data", "10.0")
+    |> form.run
+    == Error(
+      form
+      |> form.add_string("data", "10.0")
+      |> form.add_error("data", form.MustBeFloatMoreThan(10.0)),
+    )
+  assert form
+    |> form.add_string("data", "5.5")
+    |> form.run
+    == Error(
+      form
+      |> form.add_string("data", "5.5")
+      |> form.add_error("data", form.MustBeFloatMoreThan(10.0)),
+    )
+  assert form
+    |> form.add_string("data", "not_a_float")
+    |> form.run
+    == Error(
+      form
+      |> form.add_string("data", "not_a_float")
+      |> form.add_error("data", form.MustBeFloat),
+    )
+}
+
+pub fn check_float_less_than_test() {
+  let form =
+    form.new({
+      use x <- form.field("data", {
+        form.parse_float
+        |> form.check_float_less_than(100.0)
+      })
+      form.success(x)
+    })
+  assert form
+    |> form.add_string("data", "50.5")
+    |> form.run
+    == Ok(50.5)
+  assert form
+    |> form.add_string("data", "99.9")
+    |> form.run
+    == Ok(99.9)
+  assert form
+    |> form.add_string("data", "0.1")
+    |> form.run
+    == Ok(0.1)
+  assert form
+    |> form.add_string("data", "100.0")
+    |> form.run
+    == Error(
+      form
+      |> form.add_string("data", "100.0")
+      |> form.add_error("data", form.MustBeFloatLessThan(100.0)),
+    )
+  assert form
+    |> form.add_string("data", "150.5")
+    |> form.run
+    == Error(
+      form
+      |> form.add_string("data", "150.5")
+      |> form.add_error("data", form.MustBeFloatLessThan(100.0)),
+    )
+  assert form
+    |> form.add_string("data", "not_a_float")
+    |> form.run
+    == Error(
+      form
+      |> form.add_string("data", "not_a_float")
+      |> form.add_error("data", form.MustBeFloat),
+    )
+}
