@@ -493,3 +493,177 @@ pub fn parse_colour_test() {
     |> form.run
     == Error(form |> form.add_error("data", form.MustBeColour))
 }
+
+pub fn check_not_empty_test() {
+  let form =
+    form.new({
+      use x <- form.field("data", {
+        form.parse_string
+        |> form.check_not_empty
+      })
+      form.success(x)
+    })
+  assert form
+    |> form.add_string("data", "hello")
+    |> form.run
+    == Ok("hello")
+  assert form
+    |> form.add_string("data", "world")
+    |> form.run
+    == Ok("world")
+  assert form
+    |> form.add_string("data", "")
+    |> form.run
+    == Error(
+      form
+      |> form.add_string("data", "")
+      |> form.add_error("data", form.MustBePresent),
+    )
+  assert form
+    |> form.run
+    == Error(form |> form.add_error("data", form.MustBePresent))
+}
+
+pub fn check_int_less_than_test() {
+  let form =
+    form.new({
+      use x <- form.field("data", {
+        form.parse_int
+        |> form.check_int_less_than(100)
+      })
+      form.success(x)
+    })
+  assert form
+    |> form.add_string("data", "50")
+    |> form.run
+    == Ok(50)
+  assert form
+    |> form.add_string("data", "99")
+    |> form.run
+    == Ok(99)
+  assert form
+    |> form.add_string("data", "-10")
+    |> form.run
+    == Ok(-10)
+  assert form
+    |> form.add_string("data", "100")
+    |> form.run
+    == Error(
+      form
+      |> form.add_string("data", "100")
+      |> form.add_error("data", form.MustBeIntLessThan(100)),
+    )
+  assert form
+    |> form.add_string("data", "150")
+    |> form.run
+    == Error(
+      form
+      |> form.add_string("data", "150")
+      |> form.add_error("data", form.MustBeIntLessThan(100)),
+    )
+  assert form
+    |> form.add_string("data", "not_an_int")
+    |> form.run
+    == Error(
+      form
+      |> form.add_string("data", "not_an_int")
+      |> form.add_error("data", form.MustBeInt),
+    )
+}
+
+pub fn check_int_more_than_test() {
+  let form =
+    form.new({
+      use x <- form.field("data", {
+        form.parse_int
+        |> form.check_int_more_than(0)
+      })
+      form.success(x)
+    })
+  assert form
+    |> form.add_string("data", "10")
+    |> form.run
+    == Ok(10)
+  assert form
+    |> form.add_string("data", "1")
+    |> form.run
+    == Ok(1)
+  assert form
+    |> form.add_string("data", "100")
+    |> form.run
+    == Ok(100)
+  assert form
+    |> form.add_string("data", "0")
+    |> form.run
+    == Error(
+      form
+      |> form.add_string("data", "0")
+      |> form.add_error("data", form.MustBeIntMoreThan(0)),
+    )
+  assert form
+    |> form.add_string("data", "-5")
+    |> form.run
+    == Error(
+      form
+      |> form.add_string("data", "-5")
+      |> form.add_error("data", form.MustBeIntMoreThan(0)),
+    )
+  assert form
+    |> form.add_string("data", "not_an_int")
+    |> form.run
+    == Error(
+      form
+      |> form.add_string("data", "not_an_int")
+      |> form.add_error("data", form.MustBeInt),
+    )
+}
+
+pub fn check_string_length_more_than_test() {
+  let form =
+    form.new({
+      use x <- form.field("data", {
+        form.parse_string
+        |> form.check_string_length_more_than(5)
+      })
+      form.success(x)
+    })
+  assert form
+    |> form.add_string("data", "hello world")
+    |> form.run
+    == Ok("hello world")
+  assert form
+    |> form.add_string("data", "password")
+    |> form.run
+    == Ok("password")
+  assert form
+    |> form.add_string("data", "123456")
+    |> form.run
+    == Ok("123456")
+  assert form
+    |> form.add_string("data", "hello")
+    |> form.run
+    == Error(
+      form
+      |> form.add_string("data", "hello")
+      |> form.add_error("data", form.MustBeStringLengthMoreThan(5)),
+    )
+  assert form
+    |> form.add_string("data", "hi")
+    |> form.run
+    == Error(
+      form
+      |> form.add_string("data", "hi")
+      |> form.add_error("data", form.MustBeStringLengthMoreThan(5)),
+    )
+  assert form
+    |> form.add_string("data", "")
+    |> form.run
+    == Error(
+      form
+      |> form.add_string("data", "")
+      |> form.add_error("data", form.MustBeStringLengthMoreThan(5)),
+    )
+  assert form
+    |> form.run
+    == Error(form |> form.add_error("data", form.MustBeStringLengthMoreThan(5)))
+}

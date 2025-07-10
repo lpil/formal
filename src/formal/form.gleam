@@ -11,6 +11,7 @@ import gleam/uri
 
 // TODO: custom parser
 // TODO: mapping
+// TODO: document that `parse_` functions stop checkers from running on failure
 
 /// A form! Created from a `Schema` with the `new` function.
 ///
@@ -52,7 +53,6 @@ pub type FieldError {
   MustBeTime
   MustBeDateTime
   MustBeColour
-  // TODO: parser
   MustBeStringLengthMoreThan(limit: Int)
   // TODO: parser
   MustBeStringLengthLessThan(limit: Int)
@@ -66,14 +66,21 @@ pub type FieldError {
   MustMatch
   // TODO: parser
   MustBeAccepted
-  // TODO: parser
   CustomError(message: String)
 }
 
 // TODO: document
 // TODO: test
 pub opaque type Parser(value) {
-  Parser(run: fn(List(String)) -> #(value, List(FieldError)))
+  Parser(
+    run: fn(List(String), CheckingStatus) ->
+      #(value, CheckingStatus, List(FieldError)),
+  )
+}
+
+type CheckingStatus {
+  Check
+  DontCheck
 }
 
 /// Create a new form from a schema.
@@ -159,7 +166,7 @@ pub fn field(
 ) -> Schema(model) {
   Schema(fn(values, errors) {
     let input = list.key_filter(values, name)
-    let #(value, new_errors) = parser.run(input)
+    let #(value, _status, new_errors) = parser.run(input, Check)
     let errors = case new_errors {
       [] -> errors
       _ -> [#(name, new_errors), ..errors]
@@ -196,15 +203,15 @@ pub fn success(value: model) -> Schema(model) {
 // TODO: test
 
 pub fn parse_list(parser: Parser(output)) -> Parser(List(output)) {
-  Parser(fn(inputs) {
-    let #(values, errors) =
-      list.fold(inputs, #([], []), fn(acc, value) {
-        let #(value, errors) = parser.run([value])
-        #([value, ..acc.0], [errors, ..acc.1])
+  Parser(fn(inputs, check) {
+    let #(values, status, errors) =
+      list.fold(inputs, #([], Check, []), fn(acc, value) {
+        let #(value, status, errors) = parser.run([value], check)
+        #([value, ..acc.0], status, [errors, ..acc.2])
       })
     let values = list.reverse(values)
     let errors = list.reverse(errors) |> list.flatten |> list.unique
-    #(values, errors)
+    #(values, status, errors)
   })
 }
 
@@ -218,12 +225,12 @@ pub fn add_values(form: Form(a), values: List(#(String, String))) -> Form(a) {
 // TODO: document
 // TODO: test
 pub fn parse_optional(parser: Parser(output)) -> Parser(option.Option(output)) {
-  Parser(fn(inputs) {
+  Parser(fn(inputs, check) {
     case inputs {
-      [] | [""] -> #(option.None, [])
+      [] | [""] -> #(option.None, check, [])
       _ -> {
-        let #(value, errors) = parser.run(inputs)
-        #(option.Some(value), errors)
+        let #(value, status, errors) = parser.run(inputs, check)
+        #(option.Some(value), status, errors)
       }
     }
   })
@@ -245,10 +252,13 @@ pub fn parse_optional(parser: Parser(output)) -> Parser(option.Option(output)) {
 ///
 pub const parse_string: Parser(String) = Parser(string_parser)
 
-fn string_parser(inputs: List(String)) -> #(String, List(FieldError)) {
+fn string_parser(
+  inputs: List(String),
+  status: CheckingStatus,
+) -> #(String, CheckingStatus, List(FieldError)) {
   case inputs {
-    [input, ..] -> #(input, [])
-    [] -> #("", [])
+    [input, ..] -> #(input, status, [])
+    [] -> #("", status, [])
   }
 }
 
@@ -270,24 +280,28 @@ fn string_parser(inputs: List(String)) -> #(String, List(FieldError)) {
 ///
 pub const parse_int: Parser(Int) = Parser(int_parser)
 
-fn int_parser(inputs: List(String)) -> #(Int, List(FieldError)) {
-  use input <- value_parser(inputs, 0, MustBeInt)
+fn int_parser(
+  inputs: List(String),
+  status: CheckingStatus,
+) -> #(Int, CheckingStatus, List(FieldError)) {
+  use input <- value_parser(inputs, 0, status, MustBeInt)
   int.parse(input)
 }
 
 fn value_parser(
   inputs: List(String),
   zero: t,
+  status: CheckingStatus,
   error: FieldError,
   next: fn(String) -> Result(t, e),
-) -> #(t, List(FieldError)) {
+) -> #(t, CheckingStatus, List(FieldError)) {
   case inputs {
     [input, ..] ->
       case next(input) {
-        Ok(t) -> #(t, [])
-        Error(_) -> #(zero, [error])
+        Ok(t) -> #(t, status, [])
+        Error(_) -> #(zero, DontCheck, [error])
       }
-    _ -> #(zero, [error])
+    _ -> #(zero, DontCheck, [error])
   }
 }
 
@@ -309,8 +323,11 @@ fn value_parser(
 ///
 pub const parse_float: Parser(Float) = Parser(float_parser)
 
-fn float_parser(inputs: List(String)) -> #(Float, List(FieldError)) {
-  use input <- value_parser(inputs, 0.0, MustBeFloat)
+fn float_parser(
+  inputs: List(String),
+  status: CheckingStatus,
+) -> #(Float, CheckingStatus, List(FieldError)) {
+  use input <- value_parser(inputs, 0.0, status, MustBeFloat)
   float.parse(input)
 }
 
@@ -330,8 +347,11 @@ fn float_parser(inputs: List(String)) -> #(Float, List(FieldError)) {
 ///
 pub const parse_email: Parser(String) = Parser(email_parser)
 
-fn email_parser(inputs: List(String)) -> #(String, List(FieldError)) {
-  use input <- value_parser(inputs, "", MustBeEmail)
+fn email_parser(
+  inputs: List(String),
+  status: CheckingStatus,
+) -> #(String, CheckingStatus, List(FieldError)) {
+  use input <- value_parser(inputs, "", status, MustBeEmail)
   case string.contains(input, "@") {
     True -> Ok(input)
     False -> Error(Nil)
@@ -360,8 +380,11 @@ fn email_parser(inputs: List(String)) -> #(String, List(FieldError)) {
 ///
 pub const parse_phone_number: Parser(String) = Parser(phone_number_parser)
 
-fn phone_number_parser(inputs: List(String)) -> #(String, List(FieldError)) {
-  use input <- value_parser(inputs, "", MustBePhoneNumber)
+fn phone_number_parser(
+  inputs: List(String),
+  status: CheckingStatus,
+) -> #(String, CheckingStatus, List(FieldError)) {
+  use input <- value_parser(inputs, "", status, MustBePhoneNumber)
   phone_number_loop(input, "", 0)
 }
 
@@ -410,8 +433,11 @@ fn phone_number_loop(
 ///
 pub const parse_url: Parser(uri.Uri) = Parser(url_parser)
 
-fn url_parser(inputs: List(String)) -> #(uri.Uri, List(FieldError)) {
-  use input <- value_parser(inputs, uri.empty, MustBeUrl)
+fn url_parser(
+  inputs: List(String),
+  status: CheckingStatus,
+) -> #(uri.Uri, CheckingStatus, List(FieldError)) {
+  use input <- value_parser(inputs, uri.empty, status, MustBeUrl)
   uri.parse(input)
 }
 
@@ -431,9 +457,12 @@ fn url_parser(inputs: List(String)) -> #(uri.Uri, List(FieldError)) {
 ///
 pub const parse_date: Parser(calendar.Date) = Parser(date_parser)
 
-fn date_parser(inputs: List(String)) -> #(calendar.Date, List(FieldError)) {
+fn date_parser(
+  inputs: List(String),
+  status: CheckingStatus,
+) -> #(calendar.Date, CheckingStatus, List(FieldError)) {
   let zero = calendar.Date(1970, calendar.January, 1)
-  use input <- value_parser(inputs, zero, MustBeDate)
+  use input <- value_parser(inputs, zero, status, MustBeDate)
   case string.split(input, "-") {
     [year, month, day] -> {
       use year <- result.try(int.parse(year))
@@ -467,8 +496,16 @@ fn date_parser(inputs: List(String)) -> #(calendar.Date, List(FieldError)) {
 ///
 pub const parse_time: Parser(calendar.TimeOfDay) = Parser(time_parser)
 
-fn time_parser(inputs: List(String)) -> #(calendar.TimeOfDay, List(FieldError)) {
-  use input <- value_parser(inputs, calendar.TimeOfDay(0, 0, 0, 0), MustBeTime)
+fn time_parser(
+  inputs: List(String),
+  status: CheckingStatus,
+) -> #(calendar.TimeOfDay, CheckingStatus, List(FieldError)) {
+  use input <- value_parser(
+    inputs,
+    calendar.TimeOfDay(0, 0, 0, 0),
+    status,
+    MustBeTime,
+  )
   case string.split(input, ":") {
     [hour, minute, second] -> {
       parse_time_parts(hour, minute, second)
@@ -504,12 +541,13 @@ pub const parse_date_time: Parser(#(calendar.Date, calendar.TimeOfDay)) = Parser
 
 fn date_time_parser(
   inputs: List(String),
-) -> #(#(calendar.Date, calendar.TimeOfDay), List(FieldError)) {
+  status: CheckingStatus,
+) -> #(#(calendar.Date, calendar.TimeOfDay), CheckingStatus, List(FieldError)) {
   let zero = #(
     calendar.Date(1970, calendar.January, 1),
     calendar.TimeOfDay(0, 0, 0, 0),
   )
-  use input <- value_parser(inputs, zero, MustBeDateTime)
+  use input <- value_parser(inputs, zero, status, MustBeDateTime)
   case string.split_once(input, "T") {
     Ok(#(date_part, time_part)) -> {
       case string.split(date_part, "-"), string.split(time_part, ":") {
@@ -582,8 +620,11 @@ fn parse_time_parts(
 ///
 pub const parse_colour: Parser(String) = Parser(colour_parser)
 
-fn colour_parser(inputs: List(String)) -> #(String, List(FieldError)) {
-  use input <- value_parser(inputs, "", MustBeColour)
+fn colour_parser(
+  inputs: List(String),
+  status: CheckingStatus,
+) -> #(String, CheckingStatus, List(FieldError)) {
+  use input <- value_parser(inputs, "", status, MustBeColour)
   use <- bool.guard(string.byte_size(input) != 7, Error(Nil))
   case input {
     "#" <> hex -> {
@@ -611,19 +652,30 @@ fn check_map(
   map: fn(error) -> FieldError,
   checker: fn(b) -> Result(b, error),
 ) -> Parser(b) {
-  Parser(fn(inputs) {
-    let #(value, errors) = parser.run(inputs)
+  Parser(fn(inputs, status) {
+    let #(value, status, errors) = parser.run(inputs, status)
     let errors = case checker(value) {
-      Error(error) -> [map(error), ..errors]
-      Ok(_) -> errors
+      Error(error) if status == Check -> [map(error), ..errors]
+      Error(_) | Ok(_) -> errors
     }
-    #(value, errors)
+    #(value, status, errors)
   })
 }
 
-// TODO: document
-// TODO: test
-// TODO: implement
+/// Ensure that the string value is not an empty string.
+///
+/// ## Example
+///
+/// ```gleam
+/// let schema = {
+///   use tags <- form.field("tag", {
+///     form.parse_string
+///     |> form.check_not_empty
+///   })
+///   form.success(Article(tags:))
+/// }
+/// ```
+///
 pub fn check_not_empty(parser: Parser(String)) -> Parser(String) {
   check_map(parser, fn(x) { x }, fn(x) {
     case x {
@@ -633,9 +685,20 @@ pub fn check_not_empty(parser: Parser(String)) -> Parser(String) {
   })
 }
 
-// TODO: document
-// TODO: test
-// TODO: implement
+/// Ensure that an int is less than a specified limit.
+///
+/// ## Example
+///
+/// ```gleam
+/// let schema = {
+///   use age <- form.field("age", {
+///     form.parse_int
+///     |> form.check_int_less_than(150)
+///   })
+///   form.success(Person(age:))
+/// }
+/// ```
+///
 pub fn check_int_less_than(parser: Parser(Int), limit: Int) -> Parser(Int) {
   check_map(parser, fn(x) { x }, fn(x) {
     case x < limit {
@@ -645,13 +708,51 @@ pub fn check_int_less_than(parser: Parser(Int), limit: Int) -> Parser(Int) {
   })
 }
 
-// TODO: document
-// TODO: test
+/// Ensure that an int is more than a specified limit.
+///
+/// ## Example
+///
+/// ```gleam
+/// let schema = {
+///   use age <- form.field("age", {
+///     form.parse_int
+///     |> form.check_int_more_than(0)
+///   })
+///   form.success(Person(age:))
+/// }
+/// ```
+///
 pub fn check_int_more_than(parser: Parser(Int), limit: Int) -> Parser(Int) {
   check_map(parser, fn(x) { x }, fn(x) {
     case x > limit {
       True -> Ok(x)
       _ -> Error(MustBeIntMoreThan(limit))
+    }
+  })
+}
+
+/// Ensure that a string is more than a specified length.
+///
+/// ## Example
+///
+/// ```gleam
+/// let schema = {
+///   use password <- form.field("password", {
+///     form.parse_string
+///     |> form.check_string_length_more_than(8)
+///   })
+///   form.success(User(password:))
+/// }
+/// ```
+///
+pub fn check_string_length_more_than(
+  parser: Parser(String),
+  limit: Int,
+) -> Parser(String) {
+  check_map(parser, fn(x) { x }, fn(x) {
+    case string.length(x) > limit {
+      True -> Ok(x)
+      _ -> Error(MustBeStringLengthMoreThan(limit))
     }
   })
 }
