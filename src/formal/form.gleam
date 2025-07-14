@@ -60,8 +60,6 @@ pub type FieldError {
   MustBeFloatMoreThan(limit: Float)
   MustBeFloatLessThan(limit: Float)
   // TODO: parser
-  MustMatch
-  // TODO: parser
   MustBeAccepted
   CustomError(message: String)
 }
@@ -179,6 +177,7 @@ pub fn success(value: model) -> Schema(model) {
   Schema(fn(_, errors) { #(value, errors) })
 }
 
+// TODO: test
 /// A parser that applies another parser to each input value in a list.
 ///
 /// Takes a parser for a single value and returns a parser that can handle
@@ -197,8 +196,6 @@ pub fn success(value: model) -> Schema(model) {
 ///
 /// This would parse multiple "tag" fields into a list of strings.
 ///
-// TODO: test
-
 pub fn parse_list(parser: Parser(output)) -> Parser(List(output)) {
   Parser(fn(inputs, check) {
     let #(values, status, errors) =
@@ -231,6 +228,37 @@ pub fn parse_optional(parser: Parser(output)) -> Parser(option.Option(output)) {
       }
     }
   })
+}
+
+/// Parse a bool value from a checkbox type input.
+///
+/// No value or empty string counts as `False`, while any other value counts as
+/// `True`. A checked checkbox input with no explicitly set value has the value
+/// `"on"`, which is True. Unchecked checkbox inputs send no value when the
+/// form is submitted, they are absent from the sent payload.
+///
+/// ## Example
+///
+/// ```gleam
+/// let schema = {
+///   use agreed <- form.field("terms-and-conditions", {
+///     form.parse_checkbox
+///     |> form.check_accepted
+///   })
+///   form.success(Signup(agreed:))
+/// }
+/// ```
+///
+pub const parse_checkbox: Parser(Bool) = Parser(checkbox_parser)
+
+fn checkbox_parser(
+  inputs: List(String),
+  status: CheckingStatus,
+) -> #(Bool, CheckingStatus, List(FieldError)) {
+  case inputs {
+    [] | ["", ..] -> #(False, status, [])
+    [_, ..] -> #(True, status, [])
+  }
 }
 
 /// Parse a string value. This parser can never fail!
@@ -832,6 +860,18 @@ pub fn check_float_less_than(
   })
 }
 
+// TODO: test
+// TODO: implement
+// TODO: document
+pub fn check_accepted(parser: Parser(Bool)) -> Parser(Bool) {
+  check_map(parser, fn(x) { x }, fn(x) {
+    case x {
+      True -> Ok(x)
+      _ -> Error(MustBeAccepted)
+    }
+  })
+}
+
 // TODO: document
 // TODO: test
 /// Translates `FieldError`s into strings suitable for showing to the user.
@@ -865,7 +905,6 @@ pub fn en_gb(error: FieldError) -> String {
       "must be more than " <> int.to_string(limit) <> " characters"
     MustBeTime -> "must be a time"
     MustBeUrl -> "must be a URL"
-    MustMatch -> "must match"
     CustomError(message:) -> message
   }
 }

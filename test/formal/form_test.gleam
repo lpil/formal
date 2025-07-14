@@ -494,6 +494,37 @@ pub fn parse_colour_test() {
     == Error(form |> form.add_error("data", form.MustBeColour))
 }
 
+pub fn parse_checkbox_test() {
+  let form =
+    form.new({
+      use x <- form.field("data", form.parse_checkbox)
+      form.success(x)
+    })
+  assert form
+    |> form.run
+    == Ok(False)
+  assert form
+    |> form.add_string("data", "")
+    |> form.run
+    == Ok(False)
+  assert form
+    |> form.add_string("data", "on")
+    |> form.run
+    == Ok(True)
+  assert form
+    |> form.add_string("data", "true")
+    |> form.run
+    == Ok(True)
+  assert form
+    |> form.add_string("data", "false")
+    |> form.run
+    == Ok(True)
+  assert form
+    |> form.add_string("data", "1")
+    |> form.run
+    == Ok(True)
+}
+
 pub fn check_not_empty_test() {
   let form =
     form.new({
