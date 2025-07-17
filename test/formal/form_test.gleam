@@ -525,6 +525,36 @@ pub fn parse_checkbox_test() {
     == Ok(True)
 }
 
+pub fn check_accepted_test() {
+  let form =
+    form.new({
+      use x <- form.field("data", {
+        form.parse_checkbox
+        |> form.check_accepted
+      })
+      form.success(x)
+    })
+  assert form
+    |> form.add_string("data", "on")
+    |> form.run
+    == Ok(True)
+  assert form
+    |> form.add_string("data", "yes")
+    |> form.run
+    == Ok(True)
+  assert form
+    |> form.add_string("data", "")
+    |> form.run
+    == Error(
+      form
+      |> form.add_string("data", "")
+      |> form.add_error("data", form.MustBeAccepted),
+    )
+  assert form
+    |> form.run
+    == Error(form |> form.add_error("data", form.MustBeAccepted))
+}
+
 pub fn check_not_empty_test() {
   let form =
     form.new({
@@ -833,4 +863,65 @@ pub fn check_float_less_than_test() {
       |> form.add_string("data", "not_a_float")
       |> form.add_error("data", form.MustBeFloat),
     )
+}
+
+pub fn en_gb_test() {
+  assert form.en_gb(form.MustBeEmail) == "must be an email"
+  assert form.en_gb(form.MustBeColour) == "must be a hex colour code"
+  assert form.en_gb(form.MustBeFloatLessThan(limit: 5.5))
+    == "must be less than 5.5"
+}
+
+pub fn en_us_test() {
+  assert form.en_us(form.MustBeEmail) == "must be an email"
+  assert form.en_us(form.MustBeColour) == "must be a hex color code"
+  assert form.en_us(form.MustBeFloatLessThan(limit: 5.5))
+    == "must be less than 5.5"
+}
+
+pub fn language_test() {
+  let assert Error(form) =
+    form.new({
+      use email <- form.field("colour", form.parse_colour)
+      form.success(email)
+    })
+    |> form.run
+
+  assert form
+    |> form.language(form.en_gb)
+    |> form.error_text("colour")
+    == ["must be a hex colour code"]
+
+  assert form
+    |> form.language(form.en_us)
+    |> form.error_text("colour")
+    == ["must be a hex color code"]
+}
+
+pub fn error_text_test() {
+  let form =
+    form.new({
+      use email <- form.field("colour", form.parse_colour)
+      form.success(email)
+    })
+    |> form.add_error("a", form.MustBeDate)
+    |> form.add_error("a", form.MustBeFloat)
+    |> form.add_error("b", form.CustomError("must be a Pokemon"))
+
+  assert form.error_text(form, "a") == ["must be a number", "must be a date"]
+  assert form.error_text(form, "b") == ["must be a Pokemon"]
+}
+
+pub fn get_values_test() {
+  let form =
+    form.new({
+      use email <- form.field("colour", form.parse_colour)
+      form.success(email)
+    })
+    |> form.add_int("one", 100)
+    |> form.add_string("one", "Hello")
+    |> form.add_string("two", "Hi!")
+  assert form.get_values(form, "one") == ["Hello", "100"]
+  assert form.get_values(form, "two") == ["Hi!"]
+  assert form.get_values(form, "three") == []
 }
