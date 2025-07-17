@@ -59,13 +59,16 @@ pub type FieldError {
   MustBeIntLessThan(limit: Int)
   MustBeFloatMoreThan(limit: Float)
   MustBeFloatLessThan(limit: Float)
-  // TODO: parser
   MustBeAccepted
   CustomError(message: String)
 }
 
-// TODO: document
-// TODO: test
+/// A parser extracts a value from from values, converting it to a desired type
+/// and optionally validating the value. Parsers are used with the `field`
+/// function.
+///
+/// See the `parse_*` and `check_*` functions for more information.
+///
 pub opaque type Parser(value) {
   Parser(
     run: fn(List(String), CheckingStatus) ->
@@ -101,7 +104,6 @@ pub fn new(schema: Schema(model)) -> Form(model) {
   Form(translator: en_gb, errors: [], values: [], run: schema.run)
 }
 
-// TODO: test
 /// Supply a transation function that will be used when converting any
 /// `FieldError`s to text that can be presented by the user.
 ///
@@ -136,8 +138,19 @@ pub fn all_values(form: Form(model)) -> List(#(String, String)) {
   form.values
 }
 
-// TODO: document
 // TODO: test
+/// Get all the values for a given form field.
+///
+/// ## Examples
+///
+/// ```gleam
+/// let form = form
+///   |> form.add_int("one", 100)
+///   |> form.add_string("one", "Hello")
+///   |> form.add_string("two", "Hi!")
+/// assert form.get_values(form, "one") == ["Hello", "100"]
+/// ```
+///
 pub fn get_values(form: Form(model), name: String) -> List(String) {
   form.values |> list.key_filter(name)
 }
@@ -209,9 +222,17 @@ pub fn parse_list(parser: Parser(output)) -> Parser(List(output)) {
   })
 }
 
-// TODO: document
-// TODO: test
-// TODO: implement
+/// Add multiple values to a form. This function is useful for adding values
+/// from a HTTP request form body sent to your server, or from a HTML form
+/// element in your browser-based application.
+///
+/// ## Example
+///
+/// ```gleam
+/// use formdata <- wisp.require_form(request)
+/// let form <- new_user_form() |> form.add_values(formdata.values)
+/// ```
+///
 pub fn add_values(form: Form(a), values: List(#(String, String))) -> Form(a) {
   Form(..form, values: list.append(values, form.values))
 }
@@ -860,9 +881,20 @@ pub fn check_float_less_than(
   })
 }
 
-// TODO: test
-// TODO: implement
-// TODO: document
+/// Ensure that a bool is `True`.
+///
+/// ## Example
+///
+/// ```gleam
+/// let schema = {
+///   use discount <- form.field("terms-and-conditions", {
+///     form.parse_checkbox
+///     |> form.check_accepted
+///   })
+///   form.success(Product(discount:))
+/// }
+/// ```
+///
 pub fn check_accepted(parser: Parser(Bool)) -> Parser(Bool) {
   check_map(parser, fn(x) { x }, fn(x) {
     case x {
@@ -872,8 +904,6 @@ pub fn check_accepted(parser: Parser(Bool)) -> Parser(Bool) {
   })
 }
 
-// TODO: document
-// TODO: test
 /// Translates `FieldError`s into strings suitable for showing to the user.
 ///
 /// ## Examples
@@ -909,7 +939,6 @@ pub fn en_gb(error: FieldError) -> String {
   }
 }
 
-// TODO: test
 /// Translates `FieldError`s into strings suitable for showing to the user.
 ///
 /// The same as `en_gb`, but with Americanised spelling of the word "color".
@@ -927,7 +956,6 @@ pub fn en_us(error: FieldError) -> String {
   }
 }
 
-// TODO: test
 /// Add a string value to the form.
 ///
 /// You may want to use this to pre-fill a form with some already-saved
@@ -941,7 +969,6 @@ pub fn add_string(
   Form(..form, values: [#(field, value), ..form.values])
 }
 
-// TODO: document
 /// Add an int value to the form.
 ///
 /// You may want to use this to pre-fill a form with some already-saved
@@ -951,7 +978,6 @@ pub fn add_int(form: Form(model), field: String, value: Int) -> Form(model) {
   Form(..form, values: [#(field, int.to_string(value)), ..form.values])
 }
 
-// TODO: test
 /// Get the error messages for a field, if there are any.
 ///
 /// The text is formatted using the translater function given with the
