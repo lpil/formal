@@ -112,7 +112,7 @@ pub fn new(schema: Schema(model)) -> Form(model) {
 }
 
 /// Supply a transation function that will be used when converting any
-/// `FieldError`s to text that can be presented by the user.
+/// `FieldError`s to text that can be presented to the user.
 ///
 /// Build-in languages:
 ///
@@ -392,7 +392,12 @@ fn float_parser(
   status: CheckingStatus,
 ) -> #(Float, CheckingStatus, List(FieldError)) {
   use input <- value_parser(inputs, 0.0, status, MustBeFloat)
-  float.parse(input)
+  case float.parse(input) {
+    Ok(result) -> Ok(result)
+    Error(_) ->
+      int.parse(input)
+      |> result.map(int.to_float)
+  }
 }
 
 /// A parser that validates email addresses.
