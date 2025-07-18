@@ -15,7 +15,7 @@ import gleam/uri
 /// `run` function to get either the resulting value or any errors.
 ///
 /// Use the `language` function to supply a new translation function to change
-/// the language of the error messages returned by the `error_text` function.
+/// the language of the error messages returned by the `field_error_text` function.
 /// The default language is `en_gb` English.
 ///
 pub opaque type Form(model) {
@@ -56,6 +56,10 @@ pub type FieldError {
   MustBeFloatMoreThan(limit: Float)
   MustBeFloatLessThan(limit: Float)
   MustBeAccepted
+  /// For confirmation of passwords, etc. Must match the first field.
+  MustConfirm
+  /// For values that must be unique. e.g. user email addresses.
+  MustBeUnique
   CustomError(message: String)
 }
 
@@ -154,11 +158,26 @@ pub fn all_values(form: Form(model)) -> List(#(String, String)) {
 ///   |> form.add_int("one", 100)
 ///   |> form.add_string("one", "Hello")
 ///   |> form.add_string("two", "Hi!")
-/// assert form.get_values(form, "one") == ["Hello", "100"]
+/// assert form.field_values(form, "one") == ["Hello", "100"]
 /// ```
 ///
-pub fn get_values(form: Form(model), name: String) -> List(String) {
+pub fn field_values(form: Form(model), name: String) -> List(String) {
   form.values |> list.key_filter(name)
+}
+
+// TODO: test
+/// Get the first values for a given form field.
+///
+/// ## Examples
+///
+/// ```gleam
+/// let form = form |> form.add_int("one", 100)
+/// assert form.field_value(form, "one") == "100"
+/// assert form.field_value(form, "two") == ""
+/// ```
+///
+pub fn field_value(form: Form(model), name: String) -> String {
+  form.values |> list.key_find(name) |> result.unwrap("")
 }
 
 /// Run a form, returning either the successfully parsed value if there are no
@@ -242,6 +261,21 @@ pub fn add_values(form: Form(a), values: List(#(String, String))) -> Form(a) {
   Form(..form, values: list.append(values, form.values))
 }
 
+/// Replace any existing values of a form with new values. This function is
+/// useful for adding values from a HTTP request form body sent to your server,
+/// or from a HTML form element in your browser-based application.
+///
+/// ## Example
+///
+/// ```gleam
+/// use formdata <- wisp.require_form(request)
+/// let form <- new_user_form() |> form.set_values(formdata.values)
+/// ```
+///
+pub fn set_values(form: Form(a), values: List(#(String, String))) -> Form(a) {
+  Form(..form, values:)
+}
+
 /// A parser that applies another parser if there is a non-empty-string input
 /// value for the field.
 ///
@@ -271,7 +305,7 @@ pub fn parse_optional(parser: Parser(output)) -> Parser(option.Option(output)) {
 
 /// Parse a bool value from a checkbox type input.
 ///
-/// No value or empty string counts as `False`, while any other value counts as
+/// No value `False`, while any value (including empty string) counts as
 /// `True`. A checked checkbox input with no explicitly set value has the value
 /// `"on"`, which is True. Unchecked checkbox inputs send no value when the
 /// form is submitted, they are absent from the sent payload.
@@ -295,8 +329,8 @@ fn checkbox_parser(
   status: CheckingStatus,
 ) -> #(Bool, CheckingStatus, List(FieldError)) {
   case inputs {
-    [] | ["", ..] -> #(False, status, [])
-    [_, ..] -> #(True, status, [])
+    [] -> #(False, status, [])
+    _ -> #(True, status, [])
   }
 }
 
@@ -1003,6 +1037,34 @@ pub fn check_accepted(parser: Parser(Bool)) -> Parser(Bool) {
   })
 }
 
+/// Ensure that a field equals some other value. Useful for password
+/// confirmation.
+///
+/// ## Example
+///
+/// ```gleam
+/// let schema = {
+///   use password <- form.field("password-confirmation", {
+///     form.parse_string
+///     |> form.check_string_length_more_than(8)
+///   })
+///   use _ <- form.field("password-confirmation", {
+///     form.parse_string
+///     |> form.check_confirms(password)
+///   })
+///   form.success(User(password:))
+/// }
+/// ```
+///
+pub fn check_confirms(parser: Parser(t), other: t) -> Parser(t) {
+  add_check(parser, fn(x) {
+    case x == other {
+      True -> Ok(x)
+      _ -> Error(MustConfirm)
+    }
+  })
+}
+
 /// Translates `FieldError`s into strings suitable for showing to the user.
 ///
 /// ## Examples
@@ -1034,6 +1096,8 @@ pub fn en_gb(error: FieldError) -> String {
       "must be more than " <> int.to_string(limit) <> " characters"
     MustBeTime -> "must be a time"
     MustBeUrl -> "must be a URL"
+    MustConfirm -> "doesn't match"
+    MustBeUnique -> "is already in use"
     CustomError(message:) -> message
   }
 }
@@ -1082,7 +1146,7 @@ pub fn add_int(form: Form(model), field: String, value: Int) -> Form(model) {
 /// The text is formatted using the translater function given with the
 /// `langauge` function. The default translater is `en_gb`.
 ///
-pub fn error_text(form: Form(model), name: String) -> List(String) {
+pub fn field_error_messages(form: Form(model), name: String) -> List(String) {
   form.errors
   |> list.key_filter(name)
   |> list.flat_map(list.map(_, form.translator))
@@ -1093,7 +1157,7 @@ pub fn error_text(form: Form(model), name: String) -> List(String) {
 /// If the `run` function or the `add_error` function have not been called then
 /// the form is clean and won't have any errors yet.
 ///
-pub fn errors(form: Form(model), name: String) -> List(FieldError) {
+pub fn field_errors(form: Form(model), name: String) -> List(FieldError) {
   form.errors
   |> list.key_filter(name)
   |> list.flatten

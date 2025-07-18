@@ -1,8 +1,8 @@
 import formal/form.{type Form}
 import gleam/erlang/process
 import gleam/http.{Get, Post}
-import gleam/string
-import gleam/string_builder.{type StringBuilder}
+import gleam/list
+import gleam/string_tree.{type StringTree}
 import lustre/attribute
 import lustre/element.{type Element}
 import lustre/element/html
@@ -10,71 +10,110 @@ import mist
 import wisp.{type Request, type Response}
 import wisp/wisp_mist
 
-type Submission {
-  Submission(name: String, level: Int)
+/// This is the data to be extracted from the submitted form
+type Signup {
+  Signup(email: String, password: String, terms: Bool)
 }
 
+/// This function create a form that can extract the `Signup` data.
+///
+/// If the form is to be used with langauges other than English then the
+/// `form.language` function can be used to supply an alternative error
+/// translator.
+///
+fn signup_form() -> Form(Signup) {
+  form.new({
+    // The `parse_email` function validates the email format
+    use email <- form.field("email", form.parse_email)
+
+    // Terms and conditions have to be accepted, so we use `check_accepted`
+    use terms <- form.field("terms", {
+      form.parse_checkbox
+      |> form.check_accepted
+    })
+
+    // Passwords have to be longer than 8 characters. More checks could be
+    // added to enforce a stronger password.
+    use password <- form.field("password", {
+      form.parse_string
+      |> form.check_string_length_more_than(8)
+    })
+
+    // The password must be entered twice, to prevent typos.
+    // This field is only for validation, so the value is discarded.
+    use _ <- form.field("confirm", {
+      form.parse_string
+      |> form.check_confirms(password)
+    })
+
+    form.success(Signup(email:, password:, terms:))
+  })
+}
+
+/// The Wisp HTTP handler function for the application
 pub fn handle_request(req: Request) -> Response {
   use req <- middleware(req)
 
-  // For GET requests, render a new form
-  // For POST requests process the data from a submitted form
+  // GET requests: render the signup page, including a HTML form.
+  // POST requests: handle the signup page form being submitted.
   case req.method {
-    Get -> new_form()
-    Post -> submit_form(req)
+    Get -> signup_page()
+    Post -> signup_submit(req)
     _ -> wisp.method_not_allowed(allowed: [Get, Post])
   }
 }
 
-fn new_form() -> Response {
+/// The signup page handler renders the HTML page and sends it to the browser.
+fn signup_page() -> Response {
   // Create a new empty Form to render the HTML form with.
   // If the form is for updating something that already exists you may want to
-  // use `form.initial_values` to pre-fill some fields.
-  let form = form.new()
+  // use `form.add_string` or `form.add_values` to pre-fill some fields.
+  let form = signup_form()
 
-  render_form(form)
+  signup_page_html(form)
   |> wisp.html_response(200)
 }
 
-fn submit_form(req: Request) -> Response {
+/// The submission handler uses the form to extract and validate the data,
+/// re-rendering the HTML form if there are errors, rending a success page
+/// otherwise.
+fn signup_submit(req: Request) -> Response {
+  // Add the values from the HTTP request to the signup form
   use formdata <- wisp.require_form(req)
+  let form = signup_form() |> form.add_values(formdata.values)
 
-  // Extract the data from the submitted form
-  let result =
-    form.decoding({
-      use name <- form.parameter
-      use level <- form.parameter
-      Submission(name: name, level: level)
-    })
-    |> form.with_values(formdata.values)
-    |> form.field("name", form.string |> form.and(form.must_not_be_empty))
-    |> form.field("level", form.int)
-    |> form.finish
+  case form.run(form) {
+    // The form was valid! Do something with the data and render a success page
+    // to the user.
+    Ok(data) -> success_page_html(data) |> wisp.html_response(200)
 
-  case result {
-    // The form was valid! Do something with the data and render a page to the user
-    Ok(data) -> {
-      string.inspect(data)
-      |> string_builder.from_string
-      |> wisp.html_response(200)
-    }
-
-    // The form was invalid. Render the HTML form again with the errors
-    Error(form) -> {
-      render_form(form)
-      |> wisp.html_response(422)
-    }
+    // The form was invalid. Render the HTML form again to show the errors to
+    // the user.
+    Error(form) -> signup_page_html(form) |> wisp.html_response(422)
   }
 }
 
-/// Render a HTML form for a Form object using Lustre
-fn render_form(form: Form) -> StringBuilder {
+// Show a success page to the user
+fn success_page_html(data: Signup) -> StringTree {
+  html.div([], [
+    html.h1([], [element.text("Welcome " <> data.email)]),
+    html.p([], [element.text("You have successfully signed up!")]),
+    html.p([], [html.a([attribute.href("/")], [element.text("Back")])]),
+  ])
+  |> page_layout_html
+}
+
+/// Render a HTML form. Some helper functions have been created to help
+/// with rendering the label, input, and any errors.
+fn signup_page_html(form: Form(Signup)) -> StringTree {
   html.form([attribute.method("POST")], [
-    form_field(form, name: "name", kind: "text", title: "Name"),
-    form_field(form, name: "level", kind: "number", title: "Level"),
+    field_input(form, "email", kind: "text", label: "Email"),
+    field_input(form, "password", kind: "password", label: "Password"),
+    field_input(form, "confirm", kind: "password", label: "Confirmation"),
+    field_input(form, "terms", kind: "checkbox", label: "Accept terms"),
     html.div([], [html.input([attribute.type_("submit")])]),
   ])
-  |> element.to_document_string_builder
+  |> page_layout_html
 }
 
 /// Render a single HTML form field.
@@ -82,37 +121,33 @@ fn render_form(form: Form) -> StringBuilder {
 /// If the field already has a value then it is used as the HTML input value.
 /// If the field has an error it is displayed.
 ///
-fn form_field(
-  form: Form,
+fn field_input(
+  form: Form(t),
   name name: String,
   kind kind: String,
-  title title: String,
+  label label_text: String,
 ) -> Element(a) {
-  // Make an element containing the error message, if there is one.
-  let error_element = case form.field_state(form, name) {
-    Ok(_) -> element.none()
-    Error(message) ->
-      html.div([attribute.class("error")], [element.text(message)])
-  }
+  let errors = form.field_error_messages(form, name)
 
-  // Render a label and an input using the error and the value from the form.
-  // In a real program you likely want to add attributes for client side
-  // validation and for accessibility.
   html.label([], [
-    html.div([], [element.text(title)]),
-    error_element,
+    // The label text, for the user to read
+    element.text(label_text),
+    // The input, for the user to type into
     html.input([
       attribute.type_(kind),
       attribute.name(name),
-      attribute.value(form.value(form, name)),
+      attribute.value(form.field_value(form, name)),
+      case errors {
+        [] -> attribute.none()
+        _ -> attribute.aria_invalid("true")
+      },
     ]),
+    // Any errors presented below
+    ..list.map(errors, fn(msg) { html.small([], [element.text(msg)]) })
   ])
 }
 
-//
 // Boilerplate for the creation of a backend web app
-//
-
 pub fn main() {
   wisp.configure_logger()
   let secret_key_base = wisp.random_string(64)
@@ -121,7 +156,7 @@ pub fn main() {
     wisp_mist.handler(handle_request, secret_key_base)
     |> mist.new
     |> mist.port(8000)
-    |> mist.start_http
+    |> mist.start
 
   process.sleep_forever()
 }
@@ -135,4 +170,46 @@ pub fn middleware(
   use <- wisp.rescue_crashes
   use req <- wisp.handle_head(req)
   handler(req)
+}
+
+fn page_layout_html(content: Element(b)) -> StringTree {
+  html.html([attribute.attribute("lang", "en")], [
+    html.head([], [
+      html.meta([attribute.attribute("charset", "utf-8")]),
+      html.meta([
+        attribute.attribute("content", "width=device-width, initial-scale=1"),
+        attribute.name("viewport"),
+      ]),
+      html.meta([
+        attribute.attribute("content", "light dark"),
+        attribute.name("color-scheme"),
+      ]),
+      html.title([], "Formal Wisp Example"),
+      html.link([
+        attribute.href(
+          "https://cdn.jsdelivr.net/npm/@picocss/pico@2.1.1/css/pico.min.css",
+        ),
+        attribute.rel("stylesheet"),
+      ]),
+    ]),
+    html.body([], [
+      html.header([attribute.class("container")], [
+        content,
+
+        html.style(
+          [],
+          "
+input[type=checkbox] {
+  margin-left: 1em;
+}
+
+input[type=checkbox] + small {
+  margin-top: 0;
+}
+",
+        ),
+      ]),
+    ]),
+  ])
+  |> element.to_document_string_tree
 }
