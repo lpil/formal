@@ -163,6 +163,10 @@ pub fn parse_float_test() {
     |> form.run
     == Ok(123.45)
   assert form
+    |> form.add_string("data", "123")
+    |> form.run
+    == Ok(123.0)
+  assert form
     |> form.add_string("data", "not_a_float")
     |> form.run
     == Error(
