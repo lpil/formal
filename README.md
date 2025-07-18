@@ -22,31 +22,22 @@ pub type SignUp {
 //
 pub fn handle_form_submission(values: List(#(String, String))) {
   let result = 
-    form.decoding({
-      use email <- form.parameter
-      use password <- form.parameter
+    form.new({
+      use email <- form.field("email", form.parse_email)
+      use password <- form.field("password", {
+        form.parse_string
+        |> form.check_string_length_more_than(7)
+      })
       SignUp(email: email, password: password)
     })
-    |> form.with_values(values)
-    |> form.field(
-      "email",
-      form.string
-        |> form.and(form.must_not_be_empty)
-        |> form.and(form.must_be_an_email),
-    )
-    |> form.field(
-      "password",
-      form.string
-        |> form.and(form.must_not_be_empty)
-        |> form.and(form.must_be_string_longer_than(7))
-    )
-    |> form.finish
+    |> form.add_values(values)
+    |> form.run
 
   case result {
     Ok(data) -> {
       // Do something with the SignUp value here
     }
-    Error(form_state) -> {
+    Error(form) -> {
       // Re-render the form with the error messages
     }
   }
