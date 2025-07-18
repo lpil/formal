@@ -1,4 +1,5 @@
 import formal/form
+import gleam/option
 import gleam/time/calendar
 import gleam/uri
 
@@ -118,7 +119,11 @@ pub fn parse_string_test() {
     |> form.add_string("data", "hello!")
     |> form.run
     == Ok("hello!")
-
+  assert form
+    |> form.add_string("data", "first")
+    |> form.add_string("data", "second")
+    |> form.run
+    == Ok("second")
   assert form
     |> form.run
     == Ok("")
@@ -924,4 +929,211 @@ pub fn get_values_test() {
   assert form.get_values(form, "one") == ["Hello", "100"]
   assert form.get_values(form, "two") == ["Hi!"]
   assert form.get_values(form, "three") == []
+}
+
+pub fn check_test() {
+  let must_not_start_with_z = fn(s) {
+    case s {
+      "z" <> _ -> Error("must not start with z")
+      _ -> Ok(s)
+    }
+  }
+  let form =
+    form.new({
+      use data <- form.field("data", {
+        form.parse_string
+        |> form.check(must_not_start_with_z)
+      })
+      form.success(data <> data)
+    })
+  assert form
+    |> form.add_string("data", "123")
+    |> form.run
+    == Ok("123123")
+  assert form
+    |> form.add_string("data", "zyx")
+    |> form.run
+    == Error(
+      form
+      |> form.add_string("data", "zyx")
+      |> form.add_error("data", form.CustomError("must not start with z")),
+    )
+}
+
+pub fn parse_list_test() {
+  let form =
+    form.new({
+      use x <- form.field("data", form.parse_list(form.parse_int))
+      form.success(x)
+    })
+  assert form
+    |> form.add_int("data", 1)
+    |> form.add_int("data", 2)
+    |> form.add_int("data", 3)
+    |> form.run
+    == Ok([3, 2, 1])
+  assert form
+    |> form.run
+    == Ok([])
+  assert form
+    |> form.add_int("data", 1)
+    |> form.add_int("data", 2)
+    |> form.add_int("data", 3)
+    |> form.add_string("data", "hello")
+    |> form.run
+    == Error(
+      form
+      |> form.add_int("data", 1)
+      |> form.add_int("data", 2)
+      |> form.add_int("data", 3)
+      |> form.add_string("data", "hello")
+      |> form.add_error("data", form.MustBeInt),
+    )
+  assert form
+    |> form.add_string("data", "")
+    |> form.run
+    == Error(
+      form
+      |> form.add_string("data", "")
+      |> form.add_error("data", form.MustBeInt),
+    )
+  assert // Errors are not duplicated
+    form
+    |> form.add_string("data", "one")
+    |> form.add_string("data", "two")
+    |> form.run
+    == Error(
+      form
+      |> form.add_string("data", "one")
+      |> form.add_string("data", "two")
+      |> form.add_error("data", form.MustBeInt),
+    )
+}
+
+pub fn parse_optional_test() {
+  let form =
+    form.new({
+      use x <- form.field("data", form.parse_optional(form.parse_int))
+      form.success(x)
+    })
+  assert form
+    |> form.add_int("data", 1)
+    |> form.run
+    == Ok(option.Some(1))
+  assert form
+    |> form.add_string("data", "")
+    |> form.run
+    == Ok(option.None)
+  assert form
+    |> form.run
+    == Ok(option.None)
+  assert form
+    |> form.add_string("data", "blah")
+    |> form.run
+    == Error(
+      form
+      |> form.add_string("data", "blah")
+      |> form.add_error("data", form.MustBeInt),
+    )
+}
+
+type StarterPokemon {
+  Squirtle
+  Bulbasaur
+  Charmander
+}
+
+pub fn parse_test() {
+  let form =
+    form.new({
+      use x <- form.field("starter", {
+        form.parse(fn(input) {
+          case input {
+            ["Squirtle", ..] -> Ok(Squirtle)
+            ["Bulbasaur", ..] -> Ok(Bulbasaur)
+            ["Charmander", ..] -> Ok(Charmander)
+            _ -> Error(#(Squirtle, "must be a starter Pokémon"))
+          }
+        })
+      })
+      form.success(x)
+    })
+  assert form
+    |> form.add_string("starter", "Squirtle")
+    |> form.run
+    == Ok(Squirtle)
+  assert form
+    |> form.add_string("starter", "Bulbasaur")
+    |> form.run
+    == Ok(Bulbasaur)
+  assert form
+    |> form.add_string("starter", "Charmander")
+    |> form.run
+    == Ok(Charmander)
+  assert form
+    |> form.add_string("starter", "Wibble")
+    |> form.run
+    == Error(
+      form
+      |> form.add_string("starter", "Wibble")
+      |> form.add_error(
+        "starter",
+        form.CustomError("must be a starter Pokémon"),
+      ),
+    )
+}
+
+pub fn parse_short_circuit_test() {
+  let form =
+    form.new({
+      use x <- form.field("data", {
+        form.parse(fn(input) {
+          case input {
+            ["zero", ..] -> Ok(0)
+            ["one", ..] -> Ok(1)
+            ["two", ..] -> Ok(2)
+            _ -> Error(#(0, "must be a number"))
+          }
+        })
+        |> form.check_int_less_than(2)
+      })
+      form.success(x)
+    })
+  assert form
+    |> form.add_string("data", "zero")
+    |> form.run
+    == Ok(0)
+  assert // Parse fails
+    form
+    |> form.add_string("data", "Whatever!")
+    |> form.run
+    == Error(
+      form
+      |> form.add_string("data", "Whatever!")
+      |> form.add_error("data", form.CustomError("must be a number")),
+    )
+  assert // Check fails
+    form
+    |> form.add_string("data", "two")
+    |> form.run
+    == Error(
+      form
+      |> form.add_string("data", "two")
+      |> form.add_error("data", form.MustBeIntLessThan(2)),
+    )
+}
+
+pub fn map_test() {
+  let form =
+    form.new({
+      use x <- form.field("data", {
+        form.parse_string
+        |> form.map(fn(x) { #(x, x) })
+      })
+      form.success(x)
+    })
+  assert form
+    |> form.add_string("data", "Hi!")
+    |> form.run
+    == Ok(#("Hi!", "Hi!"))
 }

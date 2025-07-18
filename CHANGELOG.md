@@ -1,5 +1,10 @@
 # Changelog
 
+## v3.0.0 - Unreleased
+
+- The API has been redesigned to take advantage of Gleam's `use` and the
+  pattern that `gleam/dynamic/decode` uses.
+
 ## v2.2.0 - 2024-08-26
 
 - Updated for `gleam_stdlib` v0.40.0.
