@@ -9,10 +9,6 @@ import gleam/string
 import gleam/time/calendar
 import gleam/uri
 
-// TODO: custom parser
-// TODO: mapping
-// TODO: document that `parse_` functions stop checkers from running on failure
-
 /// A form! Created from a `Schema` with the `new` function.
 ///
 /// Supply values to a form with the `add_*` functions and then pass it to the
@@ -68,6 +64,17 @@ pub type FieldError {
 /// function.
 ///
 /// See the `parse_*` and `check_*` functions for more information.
+///
+/// Functions that start with `parse_*` are _short-circuiting_, so any parser
+/// functions that come afterwrads will not be run. For example, given this
+/// code:
+///
+/// ```gleam
+/// form.parse_int |> form.check_int_more_than(0)
+/// ```
+///
+/// If the input is not an int then `parse_int` will fail, causing
+/// `check_int_more_than` not to run, so the errors will be `[MustBeInt]`.
 ///
 pub opaque type Parser(value) {
   Parser(
@@ -138,7 +145,6 @@ pub fn all_values(form: Form(model)) -> List(#(String, String)) {
   form.values
 }
 
-// TODO: test
 /// Get all the values for a given form field.
 ///
 /// ## Examples
@@ -155,8 +161,9 @@ pub fn get_values(form: Form(model), name: String) -> List(String) {
   form.values |> list.key_filter(name)
 }
 
-// TODO: document
-// TODO: test
+/// Run a form, returning either the successfully parsed value if there are no
+/// errors, or a new instance of the form with the errors added to the fields.
+///
 pub fn run(form: Form(model)) -> Result(model, Form(model)) {
   let #(value, errors) = form.run(form.values, [])
   case errors {
@@ -165,8 +172,8 @@ pub fn run(form: Form(model)) -> Result(model, Form(model)) {
   }
 }
 
-// TODO: document
-// TODO: test
+/// Add a new parser to the form for a given form field name.
+///
 pub fn field(
   name: String,
   parser: Parser(value),
@@ -183,14 +190,12 @@ pub fn field(
   })
 }
 
-// TODO: document
-// TODO: test
-// TODO: implement
+/// Finalise a parser, having successfully parsed a value.
+///
 pub fn success(value: model) -> Schema(model) {
   Schema(fn(_, errors) { #(value, errors) })
 }
 
-// TODO: test
 /// A parser that applies another parser to each input value in a list.
 ///
 /// Takes a parser for a single value and returns a parser that can handle
@@ -237,8 +242,21 @@ pub fn add_values(form: Form(a), values: List(#(String, String))) -> Form(a) {
   Form(..form, values: list.append(values, form.values))
 }
 
-// TODO: document
-// TODO: test
+/// A parser that applies another parser if there is a non-empty-string input
+/// value for the field.
+///
+/// ## Example
+///
+/// ```gleam
+/// let schema = {
+///   use age <- form.field("tag", form.parse_optional(form.parse_int))
+///   form.success(Person(age:))
+/// }
+/// ```
+///
+/// This would parse an int if the form field has text in it, returning `None`
+/// otherwise.
+///
 pub fn parse_optional(parser: Parser(output)) -> Parser(option.Option(output)) {
   Parser(fn(inputs, check) {
     case inputs {
@@ -683,28 +701,104 @@ fn colour_parser(
   }
 }
 
-// TODO: document
-// TODO: test
-// TODO: implement
+/// Add a custom check to the parser.
+///
+/// ## Examples
+///
+/// ```gleam
+/// let must_not_be_rude = fn(text) {
+///   case contains_swear_word(text) {
+///     True -> Error("must not be rude")
+///     False -> Ok(text)
+///   }
+/// }
+/// let schema = {
+///   use name <- form.field("name", {
+///     form.parse_string
+///     |> form.check(must_not_be_rude)
+///   })
+///   form.success(Profile(name:))
+/// }
+/// ```
+///
+/// ## Internationalisation
+///
+/// If your application supports multiple languages you will need to ensure the
+/// error string returned by your checker function is already in the desired
+/// language.
+///
 pub fn check(
   parser: Parser(b),
   checker: fn(b) -> Result(b, String),
 ) -> Parser(b) {
-  check_map(parser, CustomError, checker)
+  add_check(parser, fn(a) {
+    case checker(a) {
+      Ok(a) -> Ok(a)
+      Error(e) -> Error(CustomError(e))
+    }
+  })
 }
 
-fn check_map(
+/// Create a custom parser for any type.
+///
+/// If the parser function fails it must return two values:
+/// - A default "zero" value of the expected type. This will be used to run the
+///   remaining parser code, and then will be discarded.
+/// - An error message string to present to the user.
+///
+/// ## Examples
+///
+/// ```gleam
+/// form.parse(fn(input) {
+///   case input {
+///     ["Squirtle", ..] -> Ok(Squirtle)
+///     ["Bulbasaur", ..] -> Ok(Bulbasaur)
+///     ["Charmander", ..] -> Ok(Charmander)
+///     _ -> Error(#(Squirtle, "must be a starter Pokémon"))
+///   }
+/// })
+/// ```
+///
+/// ## Internationalisation
+///
+/// If your application supports multiple languages you will need to ensure the
+/// error string returned by your parser function is already in the desired
+/// language.
+///
+pub fn parse(parser: fn(List(String)) -> Result(t, #(t, String))) -> Parser(t) {
+  Parser(fn(input, status) {
+    case parser(input) {
+      Ok(t) -> #(t, status, [])
+      Error(#(t, error)) -> #(t, DontCheck, [CustomError(error)])
+    }
+  })
+}
+
+fn add_check(
   parser: Parser(b),
-  map: fn(error) -> FieldError,
-  checker: fn(b) -> Result(b, error),
+  checker: fn(b) -> Result(b, FieldError),
 ) -> Parser(b) {
   Parser(fn(inputs, status) {
     let #(value, status, errors) = parser.run(inputs, status)
-    let errors = case checker(value) {
-      Error(error) if status == Check -> [map(error), ..errors]
-      Error(_) | Ok(_) -> errors
+    let errors = case status {
+      Check ->
+        case checker(value) {
+          Error(error) -> [error, ..errors]
+          Ok(_) -> errors
+        }
+      DontCheck -> errors
     }
     #(value, status, errors)
+  })
+}
+
+/// Convert the parsed value into another, similar to `list.map` or
+/// `result.map`.
+///
+pub fn map(parser: Parser(t1), mapper: fn(t1) -> t2) -> Parser(t2) {
+  Parser(fn(input, status) {
+    let #(t1, status, errors) = parser.run(input, status)
+    #(mapper(t1), status, errors)
   })
 }
 
@@ -723,7 +817,7 @@ fn check_map(
 /// ```
 ///
 pub fn check_not_empty(parser: Parser(String)) -> Parser(String) {
-  check_map(parser, fn(x) { x }, fn(x) {
+  add_check(parser, fn(x) {
     case x {
       "" -> Error(MustBePresent)
       _ -> Ok(x)
@@ -746,7 +840,7 @@ pub fn check_not_empty(parser: Parser(String)) -> Parser(String) {
 /// ```
 ///
 pub fn check_int_less_than(parser: Parser(Int), limit: Int) -> Parser(Int) {
-  check_map(parser, fn(x) { x }, fn(x) {
+  add_check(parser, fn(x) {
     case x < limit {
       True -> Ok(x)
       _ -> Error(MustBeIntLessThan(limit))
@@ -769,7 +863,7 @@ pub fn check_int_less_than(parser: Parser(Int), limit: Int) -> Parser(Int) {
 /// ```
 ///
 pub fn check_int_more_than(parser: Parser(Int), limit: Int) -> Parser(Int) {
-  check_map(parser, fn(x) { x }, fn(x) {
+  add_check(parser, fn(x) {
     case x > limit {
       True -> Ok(x)
       _ -> Error(MustBeIntMoreThan(limit))
@@ -795,7 +889,7 @@ pub fn check_string_length_more_than(
   parser: Parser(String),
   limit: Int,
 ) -> Parser(String) {
-  check_map(parser, fn(x) { x }, fn(x) {
+  add_check(parser, fn(x) {
     case string.length(x) > limit {
       True -> Ok(x)
       _ -> Error(MustBeStringLengthMoreThan(limit))
@@ -821,7 +915,7 @@ pub fn check_string_length_less_than(
   parser: Parser(String),
   limit: Int,
 ) -> Parser(String) {
-  check_map(parser, fn(x) { x }, fn(x) {
+  add_check(parser, fn(x) {
     case string.length(x) < limit {
       True -> Ok(x)
       _ -> Error(MustBeStringLengthLessThan(limit))
@@ -847,7 +941,7 @@ pub fn check_float_more_than(
   parser: Parser(Float),
   limit: Float,
 ) -> Parser(Float) {
-  check_map(parser, fn(x) { x }, fn(x) {
+  add_check(parser, fn(x) {
     case x >. limit {
       True -> Ok(x)
       _ -> Error(MustBeFloatMoreThan(limit))
@@ -873,7 +967,7 @@ pub fn check_float_less_than(
   parser: Parser(Float),
   limit: Float,
 ) -> Parser(Float) {
-  check_map(parser, fn(x) { x }, fn(x) {
+  add_check(parser, fn(x) {
     case x <. limit {
       True -> Ok(x)
       _ -> Error(MustBeFloatLessThan(limit))
@@ -896,7 +990,7 @@ pub fn check_float_less_than(
 /// ```
 ///
 pub fn check_accepted(parser: Parser(Bool)) -> Parser(Bool) {
-  check_map(parser, fn(x) { x }, fn(x) {
+  add_check(parser, fn(x) {
     case x {
       True -> Ok(x)
       _ -> Error(MustBeAccepted)
