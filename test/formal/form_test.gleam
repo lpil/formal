@@ -515,7 +515,7 @@ pub fn parse_checkbox_test() {
   assert form
     |> form.add_string("data", "")
     |> form.run
-    == Ok(False)
+    == Ok(True)
   assert form
     |> form.add_string("data", "on")
     |> form.run
@@ -554,14 +554,34 @@ pub fn check_accepted_test() {
   assert form
     |> form.add_string("data", "")
     |> form.run
-    == Error(
-      form
-      |> form.add_string("data", "")
-      |> form.add_error("data", form.MustBeAccepted),
-    )
+    == Ok(True)
   assert form
     |> form.run
     == Error(form |> form.add_error("data", form.MustBeAccepted))
+}
+
+pub fn check_confirms_test() {
+  let form =
+    form.new({
+      use password <- form.field("password", { form.parse_string })
+      use confirmation <- form.field("confirmation", {
+        form.parse_string
+        |> form.check_confirms(password)
+      })
+      form.success(#(password, confirmation))
+    })
+  assert form
+    |> form.add_string("password", "123")
+    |> form.add_string("confirmation", "123")
+    |> form.run
+    == Ok(#("123", "123"))
+  assert form
+    |> form.add_string("password", "123")
+    |> form.run
+    == form
+    |> form.add_string("password", "123")
+    |> form.add_error("confirmation", form.MustConfirm)
+    |> Error
 }
 
 pub fn check_not_empty_test() {
@@ -898,12 +918,12 @@ pub fn language_test() {
 
   assert form
     |> form.language(form.en_gb)
-    |> form.error_text("colour")
+    |> form.field_error_messages("colour")
     == ["must be a hex colour code"]
 
   assert form
     |> form.language(form.en_us)
-    |> form.error_text("colour")
+    |> form.field_error_messages("colour")
     == ["must be a hex color code"]
 }
 
@@ -917,8 +937,9 @@ pub fn error_text_test() {
     |> form.add_error("a", form.MustBeFloat)
     |> form.add_error("b", form.CustomError("must be a Pokemon"))
 
-  assert form.error_text(form, "a") == ["must be a number", "must be a date"]
-  assert form.error_text(form, "b") == ["must be a Pokemon"]
+  assert form.field_error_messages(form, "a")
+    == ["must be a number", "must be a date"]
+  assert form.field_error_messages(form, "b") == ["must be a Pokemon"]
 }
 
 pub fn get_values_test() {
@@ -930,9 +951,9 @@ pub fn get_values_test() {
     |> form.add_int("one", 100)
     |> form.add_string("one", "Hello")
     |> form.add_string("two", "Hi!")
-  assert form.get_values(form, "one") == ["Hello", "100"]
-  assert form.get_values(form, "two") == ["Hi!"]
-  assert form.get_values(form, "three") == []
+  assert form.field_values(form, "one") == ["Hello", "100"]
+  assert form.field_values(form, "two") == ["Hi!"]
+  assert form.field_values(form, "three") == []
 }
 
 pub fn check_test() {
@@ -1140,4 +1161,30 @@ pub fn map_test() {
     |> form.add_string("data", "Hi!")
     |> form.run
     == Ok(#("Hi!", "Hi!"))
+}
+
+pub fn set_values_test() {
+  let form =
+    form.new(form.success(Nil))
+    |> form.set_values([#("a", "1"), #("b", "2")])
+
+  assert form.all_values(form) == [#("a", "1"), #("b", "2")]
+
+  assert form
+    |> form.set_values([#("a", "3")])
+    |> form.all_values
+    == [#("a", "3")]
+}
+
+pub fn add_values_test() {
+  let form =
+    form.new(form.success(Nil))
+    |> form.add_values([#("a", "1"), #("b", "2")])
+
+  assert form.all_values(form) == [#("a", "1"), #("b", "2")]
+
+  assert form
+    |> form.add_values([#("a", "3")])
+    |> form.all_values
+    == [#("a", "3"), #("a", "1"), #("b", "2")]
 }

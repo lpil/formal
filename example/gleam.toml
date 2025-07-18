@@ -3,12 +3,12 @@ version = "1.0.0"
 
 [dependencies]
 gleam_stdlib = ">= 0.34.0 and < 2.0.0"
-gleam_erlang = ">= 0.25.0 and < 1.0.0"
-gleam_http = ">= 3.6.0 and < 4.0.0"
-mist = ">= 2.0.0 and < 3.0.0"
-wisp = ">= 1.0.0 and < 2.0.0"
-lustre = ">= 4.3.0 and < 5.0.0"
 formal = { path = ".." }
+wisp = ">= 1.8.0 and < 2.0.0"
+gleam_erlang = ">= 1.2.0 and < 2.0.0"
+gleam_http = ">= 4.1.0 and < 5.0.0"
+lustre = ">= 5.2.1 and < 6.0.0"
+mist = ">= 5.0.2 and < 6.0.0"
 
 [dev-dependencies]
 gleeunit = ">= 1.0.0 and < 2.0.0"
