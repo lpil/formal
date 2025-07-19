@@ -70,7 +70,7 @@ fn signup_page() -> Response {
   // use `form.add_string` or `form.add_values` to pre-fill some fields.
   let form = signup_form()
 
-  signup_page_html(form)
+  signup_page_view(form)
   |> wisp.html_response(200)
 }
 
@@ -85,27 +85,29 @@ fn signup_submit(req: Request) -> Response {
   case form.run(form) {
     // The form was valid! Do something with the data and render a success page
     // to the user.
-    Ok(data) -> success_page_html(data) |> wisp.html_response(200)
+    Ok(data) -> success_page_view(data) |> wisp.html_response(200)
 
     // The form was invalid. Render the HTML form again to show the errors to
     // the user.
-    Error(form) -> signup_page_html(form) |> wisp.html_response(422)
+    Error(form) -> signup_page_view(form) |> wisp.html_response(422)
   }
 }
 
 // Show a success page to the user
-fn success_page_html(data: Signup) -> StringTree {
+fn success_page_view(data: Signup) -> StringTree {
   html.div([], [
     html.h1([], [element.text("Welcome " <> data.email)]),
     html.p([], [element.text("You have successfully signed up!")]),
     html.p([], [html.a([attribute.href("/")], [element.text("Back")])]),
   ])
-  |> page_layout_html
+  |> page_layout_view
 }
 
 /// Render a HTML form. Some helper functions have been created to help
 /// with rendering the label, input, and any errors.
-fn signup_page_html(form: Form(Signup)) -> StringTree {
+/// In a real application you'd likely want more sophisticated form field
+/// functions.
+fn signup_page_view(form: Form(Signup)) -> StringTree {
   html.form([attribute.method("POST")], [
     field_input(form, "email", kind: "text", label: "Email"),
     field_input(form, "password", kind: "password", label: "Password"),
@@ -113,7 +115,7 @@ fn signup_page_html(form: Form(Signup)) -> StringTree {
     field_input(form, "terms", kind: "checkbox", label: "Accept terms"),
     html.div([], [html.input([attribute.type_("submit")])]),
   ])
-  |> page_layout_html
+  |> page_layout_view
 }
 
 /// Render a single HTML form field.
@@ -172,7 +174,7 @@ pub fn middleware(
   handler(req)
 }
 
-fn page_layout_html(content: Element(b)) -> StringTree {
+fn page_layout_view(content: Element(b)) -> StringTree {
   html.html([attribute.attribute("lang", "en")], [
     html.head([], [
       html.meta([attribute.attribute("charset", "utf-8")]),
