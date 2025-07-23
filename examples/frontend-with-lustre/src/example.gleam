@@ -1,7 +1,5 @@
 import formal/form.{type Form}
-import gleam/erlang/process
 import gleam/list
-import gleam/string_tree.{type StringTree}
 import lustre
 import lustre/attribute
 import lustre/element.{type Element}
@@ -55,8 +53,9 @@ type Model {
 
 type Msg {
   /// This message is emitted by the `on_submit` function when the form is
-  /// submitted. `fields` are the values from all the inputs in the form.
-  FormSubmitted(fields: List(#(String, String)))
+  /// submitted. It contains the result from running the form, which is either
+  /// successfully decoded data, or the form with new errors.
+  FormSubmitted(result: Result(Signup, Form(Signup)))
   ReturnToFormButtonClicked
 }
 
@@ -66,35 +65,17 @@ fn init(_args: anything) -> Model {
   FormPage(form: signup_form())
 }
 
-fn update(model: Model, msg: Msg) -> Model {
-  case model {
-    FormPage(form:) -> form_page_update(form, msg)
-    SuccessPage(data:) -> success_page_update(data, msg)
-  }
-}
-
-/// When on the form page gets the `FormSubmitted` message then the new values
-/// are added to the form, and the form is run to extract and validate the
-/// data the user typed in.
-///
-fn form_page_update(form: Form(Signup), msg: Msg) -> Model {
+fn update(_model: Model, msg: Msg) -> Model {
   case msg {
-    FormSubmitted(fields:) -> {
-      case form.add_values(form, fields) |> form.run {
-        // The form was valid! We can transition to the success page
-        Ok(data) -> SuccessPage(data)
+    // The form was valid! We can transition to the success page.
+    FormSubmitted(result: Ok(signup)) -> SuccessPage(data: signup)
 
-        // The form was invalid. Update the model with the new form and errors
-        Error(form) -> FormPage(form:)
-      }
-    }
-    ReturnToFormButtonClicked -> FormPage(form:)
-  }
-}
+    // The form was invalid. Stay on the form page and use the new form state
+    // so the new errors are presented to the user by the view function.
+    FormSubmitted(result: Error(form)) -> FormPage(form:)
 
-fn success_page_update(data: Signup, msg: Msg) -> Model {
-  case msg {
-    FormSubmitted(..) -> SuccessPage(data)
+    // The user wants to navigate back to the form, so set the model to the
+    // form page with a new empty form state.
     ReturnToFormButtonClicked -> FormPage(form: signup_form())
   }
 }
@@ -113,8 +94,6 @@ fn view(model: Model) -> Element(Msg) {
       FormPage(form:) -> signup_page_view(form)
       SuccessPage(data:) -> success_page_view(data)
     },
-
-    html.style([], inline_stylesheet),
   ])
 }
 
@@ -136,7 +115,14 @@ fn success_page_view(data: Signup) -> Element(Msg) {
 /// In a real application you'd likely want more sophisticated form field
 /// functions.
 fn signup_page_view(form: Form(Signup)) -> Element(Msg) {
-  html.form([attribute.method("POST"), event.on_submit(FormSubmitted)], [
+  // This event handler is used when the form is submitted. It decodes the fields
+  // from the HTML using the `Form`, and dispatches the result back to the
+  // application with the `FormSubmitted` message.
+  let submitted = fn(fields) {
+    form |> form.add_values(fields) |> form.run |> FormSubmitted
+  }
+
+  html.form([attribute.method("POST"), event.on_submit(submitted)], [
     field_input(form, "email", kind: "text", label: "Email"),
     field_input(form, "password", kind: "password", label: "Password"),
     field_input(form, "confirm", kind: "password", label: "Confirmation"),
@@ -182,13 +168,3 @@ pub fn main() -> Nil {
   let assert Ok(_) = lustre.start(app, "#app", Nil)
   Nil
 }
-
-const inline_stylesheet = "
-input[type=checkbox] {
-  margin-left: 1em;
-}
-
-input[type=checkbox] + small {
-  margin-top: 0;
-}
-"
