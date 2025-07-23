@@ -17,5 +17,9 @@ jobs:
           gleam-version: "1.11.1"
           rebar3-version: "3"
       - run: gleam test
-      - run: cd example && gleam test
-      - run: gleam format --check src test example/src example/test
+      - run: cd examples/backend-with-wisp && gleam test
+      - run: cd examples/backend-with-wisp && gleam test
+
+      - run: gleam format --check
+      - run: cd examples/backend-with-wisp && gleam format --check
+      - run: cd examples/backend-with-wisp && gleam format --check
