@@ -55,8 +55,8 @@ type Msg {
   /// This message is emitted by the `on_submit` function when the form is
   /// submitted. It contains the result from running the form, which is either
   /// successfully decoded data, or the form with new errors.
-  FormSubmitted(result: Result(Signup, Form(Signup)))
-  ReturnToFormButtonClicked
+  UserSubmittedSignupForm(result: Result(Signup, Form(Signup)))
+  UserClickedSignupLink
 }
 
 /// The initial state of the application is to be on the form page with a fresh
@@ -68,15 +68,15 @@ fn init(_args: anything) -> Model {
 fn update(_model: Model, msg: Msg) -> Model {
   case msg {
     // The form was valid! We can transition to the success page.
-    FormSubmitted(result: Ok(signup)) -> SuccessPage(data: signup)
+    UserSubmittedSignupForm(result: Ok(signup)) -> SuccessPage(data: signup)
 
     // The form was invalid. Stay on the form page and use the new form state
     // so the new errors are presented to the user by the view function.
-    FormSubmitted(result: Error(form)) -> FormPage(form:)
+    UserSubmittedSignupForm(result: Error(form)) -> FormPage(form:)
 
     // The user wants to navigate back to the form, so set the model to the
     // form page with a new empty form state.
-    ReturnToFormButtonClicked -> FormPage(form: signup_form())
+    UserClickedSignupLink -> FormPage(form: signup_form())
   }
 }
 
@@ -103,7 +103,7 @@ fn success_page_view(data: Signup) -> Element(Msg) {
     html.h1([], [element.text("Welcome " <> data.email)]),
     html.p([], [element.text("You have successfully signed up!")]),
     html.p([], [
-      html.a([event.on_click(ReturnToFormButtonClicked)], [
+      html.a([event.on_click(UserClickedSignupLink)], [
         element.text("Back"),
       ]),
     ]),
@@ -119,7 +119,7 @@ fn signup_page_view(form: Form(Signup)) -> Element(Msg) {
   // from the HTML using the `Form`, and dispatches the result back to the
   // application with the `FormSubmitted` message.
   let submitted = fn(fields) {
-    form |> form.add_values(fields) |> form.run |> FormSubmitted
+    form |> form.add_values(fields) |> form.run |> UserSubmittedSignupForm
   }
 
   html.form([attribute.method("POST"), event.on_submit(submitted)], [
