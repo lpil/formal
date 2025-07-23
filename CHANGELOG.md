@@ -1,6 +1,6 @@
 # Changelog
 
-## v3.0.0 - Unreleased
+## v3.0.0 - 2025-07-23
 
 - The API has been redesigned to take advantage of Gleam's `use` and the
   pattern that `gleam/dynamic/decode` uses.
