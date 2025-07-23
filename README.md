@@ -58,6 +58,6 @@ pub fn handle_form_submission(values: List(#(String, String))) {
 ## Examples
 
 - [Backend example with Wisp](https://github.com/lpil/formal/tree/main/examples/backend-with-wisp)
-- [Frontend example with Lustre](https://github.com/lpil/formal/tree/main/examples/backend-with-lustre)
+- [Frontend example with Lustre](https://github.com/lpil/formal/tree/main/examples/frontend-with-lustre)
 
 Further documentation can be found at <https://hexdocs.pm/formal>.
