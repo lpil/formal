@@ -63,14 +63,14 @@ pub type FieldError {
   CustomError(message: String)
 }
 
-/// A parser extracts a value from from values, converting it to a desired type
+/// A parser extracts a value from form values, converting it to a desired type
 /// and optionally validating the value. Parsers are used with the `field`
 /// function.
 ///
 /// See the `parse_*` and `check_*` functions for more information.
 ///
 /// Functions that start with `parse_*` are _short-circuiting_, so any parser
-/// functions that come afterwrads will not be run. For example, given this
+/// functions that come afterwards will not be run. For example, given this
 /// code:
 ///
 /// ```gleam
@@ -123,7 +123,7 @@ pub fn new(schema: Schema(model)) -> Form(model) {
 /// - `en_gb`
 /// - `en_us`
 ///
-/// These functions are named using the IETF language tag for the langauge they
+/// These functions are named using the IETF language tag for the language they
 /// translate to.
 ///
 /// If no language is supplied then `en_gb` is used by default.
@@ -1144,7 +1144,7 @@ pub fn add_int(form: Form(model), field: String, value: Int) -> Form(model) {
 /// Get the error messages for a field, if there are any.
 ///
 /// The text is formatted using the translater function given with the
-/// `langauge` function. The default translater is `en_gb`.
+/// `language` function. The default translater is `en_gb`.
 ///
 pub fn field_error_messages(form: Form(model), name: String) -> List(String) {
   form.errors
@@ -1152,7 +1152,7 @@ pub fn field_error_messages(form: Form(model), name: String) -> List(String) {
   |> list.flat_map(list.map(_, form.translator))
 }
 
-/// Get all the form.
+/// Get all the form field errors.
 ///
 /// If the `run` function or the `add_error` function have not been called then
 /// the form is clean and won't have any errors yet.
