@@ -30,7 +30,7 @@ fn signup_form() -> Form(Signup) {
       form.parse_string
       |> form.check_confirms(password)
     })
-    SignUp(email: email, password: password)
+    form.success(SignUp(email: email, password: password))
   })
 }
 
