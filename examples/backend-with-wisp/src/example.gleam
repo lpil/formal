@@ -17,7 +17,7 @@ type Signup {
 
 /// This function create a form that can extract the `Signup` data.
 ///
-/// If the form is to be used with langauges other than English then the
+/// If the form is to be used with languages other than English then the
 /// `form.language` function can be used to supply an alternative error
 /// translator.
 ///
