@@ -39,7 +39,7 @@ fn signup_form() -> Form(Signup) {
 // all the fields are present and valid.
 //
 pub fn handle_form_submission(values: List(#(String, String))) {
-  let result = 
+  let result =
     signup_form()
     |> form.add_values(values)
     |> form.run
@@ -55,9 +55,60 @@ pub fn handle_form_submission(values: List(#(String, String))) {
 }
 ```
 
-## Examples
+## Example applications
 
 - [Backend example with Wisp](https://github.com/lpil/formal/tree/main/examples/backend-with-wisp)
 - [Frontend example with Lustre](https://github.com/lpil/formal/tree/main/examples/frontend-with-lustre)
+
+## Parsing variants example
+
+Sometime you may have a complex form that could be in one of several formats,
+and you wish to parse the different variants of this form into a single Gleam
+custom type. This can be done by having a hidden input on the forms to indicate
+which variant it is, and then pattern matching on the result.
+
+```gleam
+/// This variant indicates which variant it is
+pub type VisitorKind {
+  GuestKind
+  UserKind
+}
+
+/// A parser for that type
+fn parse_visitor_kind() {
+  form.parse(fn(values) {
+    case values {
+      ["guest", ..] -> Ok(GuestKind)
+      ["user", ..] -> Ok(UserKind)
+      _ -> Error(#(WibbleForm, "must be guest or user"))
+    }
+  })
+}
+
+/// The custom type to decode the form into
+type VisitorForm {
+  GuestForm(email: String)
+  UserForm(username: String)
+}
+
+/// In the form function the kind is parsed first, and then depending on which
+/// variant it is different form logic follows.
+fn wibble_form() {
+  form.new({
+    use variant <- form.field("kind", parse_visitor_kind())
+
+    case variant {
+      GuestKind -> {
+        use email <- form.field("email", form.parse_email)
+        form.success(GuestForm(email:))
+      }
+      UserKind -> {
+        use wobble <- form.field("username", form.parse_string)
+        form.success(UserForm(username:))
+      }
+    }
+  })
+}
+```
 
 Further documentation can be found at <https://hexdocs.pm/formal>.
