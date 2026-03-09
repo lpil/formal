@@ -1,5 +1,10 @@
 # Changelog
 
+## v3.0.1 - 2026-03-09
+
+- Fixed a bug where `parse_optional` would fail when there are multiple blank
+  inputs.
+
 ## v3.0.0 - 2025-07-23
 
 - The API has been redesigned to take advantage of Gleam's `use` and the

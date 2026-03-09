@@ -1050,6 +1050,11 @@ pub fn parse_optional_test() {
     |> form.run
     == Ok(option.None)
   assert form
+    |> form.add_string("data", "")
+    |> form.add_string("data", "")
+    |> form.run
+    == Ok(option.None)
+  assert form
     |> form.run
     == Ok(option.None)
   assert form

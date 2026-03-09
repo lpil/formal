@@ -293,9 +293,9 @@ pub fn set_values(form: Form(a), values: List(#(String, String))) -> Form(a) {
 ///
 pub fn parse_optional(parser: Parser(output)) -> Parser(option.Option(output)) {
   Parser(fn(inputs, check) {
-    case inputs {
-      [] | [""] -> #(option.None, check, [])
-      _ -> {
+    case list.any(inputs, fn(input) { input != "" }) {
+      False -> #(option.None, check, [])
+      True -> {
         let #(value, status, errors) = parser.run(inputs, check)
         #(option.Some(value), status, errors)
       }
