@@ -151,7 +151,7 @@ fn field_input(
     html.input([
       attribute.type_(kind),
       attribute.name(name),
-      attribute.value(form.field_value(form, name)),
+      attribute.default_value(form.field_value(form, name)),
       case errors {
         [] -> attribute.none()
         _ -> attribute.aria_invalid("true")

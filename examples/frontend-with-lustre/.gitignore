@@ -1,1 +1,5 @@
 priv/static
+
+#Added automatically by Lustre Dev Tools
+/.lustre
+/dist
