@@ -2,10 +2,10 @@ name = "example"
 version = "1.0.0"
 
 [dependencies]
-gleam_stdlib = ">= 0.34.0 and < 2.0.0"
+gleam_stdlib = ">= 1.0.3 and < 2.0.0"
 formal = { path = "../.." }
-lustre = ">= 5.2.1 and < 6.0.0"
+lustre = ">= 5.7.0 and < 6.0.0"
 
 [dev-dependencies]
 gleeunit = ">= 1.0.0 and < 2.0.0"
-lustre_dev_tools = ">= 2.0.0 and < 3.0.0"
+lustre_dev_tools = ">= 2.3.6 and < 3.0.0"
