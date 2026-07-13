@@ -8,5 +8,5 @@ This code runs entirely within the browser using Gleam compiled to JavaScript.
 
 ```sh
 # Run the example
-gleam run
+gleam run -m lustre/dev start
 ```
