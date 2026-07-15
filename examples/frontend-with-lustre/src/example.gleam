@@ -51,7 +51,7 @@ type Model {
   SuccessPage(data: Signup)
 }
 
-type Messsge {
+type Message {
   /// This message is emitted by the `on_submit` function when the form is
   /// submitted. It contains the result from running the form, which is either
   /// successfully decoded data, or the form with new errors.
@@ -65,7 +65,7 @@ fn init(_args: anything) -> Model {
   FormPage(form: signup_form())
 }
 
-fn update(_model: Model, message: Messsge) -> Model {
+fn update(_model: Model, message: Message) -> Model {
   case message {
     // The form was valid! We can transition to the success page.
     UserSubmittedSignupForm(result: Ok(signup)) -> SuccessPage(data: signup)
@@ -80,7 +80,7 @@ fn update(_model: Model, message: Messsge) -> Model {
   }
 }
 
-fn view(model: Model) -> Element(Messsge) {
+fn view(model: Model) -> Element(Message) {
   let css = "https://cdn.jsdelivr.net/npm/@picocss/pico@2.1.1/css/pico.min.css"
 
   html.div([attribute.class("container")], [
@@ -98,7 +98,7 @@ fn view(model: Model) -> Element(Messsge) {
 }
 
 // Show a success page to the user
-fn success_page_view(data: Signup) -> Element(Messsge) {
+fn success_page_view(data: Signup) -> Element(Message) {
   html.div([], [
     html.h1([], [element.text("Welcome " <> data.email)]),
     html.p([], [element.text("You have successfully signed up!")]),
@@ -114,7 +114,7 @@ fn success_page_view(data: Signup) -> Element(Messsge) {
 /// with rendering the label, input, and any errors.
 /// In a real application you'd likely want more sophisticated form field
 /// functions.
-fn signup_page_view(form: Form(Signup)) -> Element(Messsge) {
+fn signup_page_view(form: Form(Signup)) -> Element(Message) {
   // This event handler is used when the form is submitted. It decodes the fields
   // from the HTML using the `Form`, and dispatches the result back to the
   // application with the `FormSubmitted` message.
