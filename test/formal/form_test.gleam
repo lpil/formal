@@ -1193,3 +1193,125 @@ pub fn add_values_test() {
     |> form.all_values
     == [#("a", "3"), #("a", "1"), #("b", "2")]
 }
+
+pub fn set_field_values_test() {
+  let form =
+    form.new({
+      use species <- form.field(
+        "species",
+        form.parse_list(form.parse_string),
+      )
+      form.success(species)
+    })
+
+  // Replaces any existing values of the named field
+  let form =
+    form
+    |> form.add_string("species", "hamster")
+    |> form.set_field_values("species", [
+      #("species", "cat"),
+      #("species", "dog"),
+      #("species", "rabbit"),
+    ])
+
+  assert form.field_values(form, "species") == ["cat", "dog", "rabbit"]
+
+  assert form
+    |> form.run
+    == Ok(["cat", "dog", "rabbit"])
+
+  // Other fields are preserved
+  let form =
+    form
+    |> form.set_field_values("species", [#("species", "fish")])
+    |> form.add_string("other", "value")
+
+  assert form.field_values(form, "species") == ["fish"]
+  assert form.field_values(form, "other") == ["value"]
+}
+
+pub fn add_field_value_test() {
+  let form =
+    form.new({
+      use species <- form.field(
+        "species",
+        form.parse_list(form.parse_string),
+      )
+      form.success(species)
+    })
+
+  // Appends a value to the named field
+  let form =
+    form
+    |> form.add_field_value("species", "cat")
+    |> form.add_field_value("species", "dog")
+
+  assert form.field_values(form, "species") == ["dog", "cat"]
+
+  assert form
+    |> form.run
+    == Ok(["dog", "cat"])
+
+  // Other fields are preserved
+  let form =
+    form.new({
+      use species <- form.field(
+        "species",
+        form.parse_list(form.parse_string),
+      )
+      form.success(species)
+    })
+    |> form.add_string("other", "value")
+    |> form.add_field_value("species", "rabbit")
+
+  assert form.field_values(form, "other") == ["value"]
+  assert form.field_values(form, "species") == ["rabbit"]
+}
+
+pub fn remove_field_value_test() {
+  let form =
+    form.new({
+      use species <- form.field(
+        "species",
+        form.parse_list(form.parse_string),
+      )
+      form.success(species)
+    })
+
+  // Removes only the matching name+value pair
+  let form =
+    form
+    |> form.set_field_values("species", [
+      #("species", "cat"),
+      #("species", "dog"),
+      #("species", "rabbit"),
+    ])
+    |> form.remove_field_value("species", "dog")
+
+  assert form.field_values(form, "species") == ["cat", "rabbit"]
+
+  assert form
+    |> form.run
+    == Ok(["cat", "rabbit"])
+
+  // Removing a value that doesn't exist is a no-op
+  let form =
+    form
+    |> form.set_field_values("species", [#("species", "cat")])
+    |> form.remove_field_value("species", "hamster")
+
+  assert form.field_values(form, "species") == ["cat"]
+
+  // Other fields are preserved
+  let form =
+    form
+    |> form.set_field_values("species", [
+      #("species", "cat"),
+      #("species", "dog"),
+    ])
+    |> form.add_string("other", "value")
+    |> form.remove_field_value("species", "cat")
+
+  assert form.field_values(form, "species") == ["dog"]
+  assert form.field_values(form, "other") == ["value"]
+}

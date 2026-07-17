@@ -276,6 +276,76 @@ pub fn set_values(form: Form(a), values: List(#(String, String))) -> Form(a) {
   Form(..form, values:)
 }
 
+/// Replace any existing values of a form field with new values. This is useful
+/// for setting multiple values on a single field, such as the selected options
+/// of a multi-select input.
+///
+/// ## Example
+///
+/// ```gleam
+/// let form =
+///   form.new(schema)
+///   |> form.set_field_values("species", [
+///     #("species", "cat"),
+///     #("species", "dog"),
+///     #("species", "rabbit"),
+///   ])
+/// ```
+///
+pub fn set_field_values(
+  form: Form(a),
+  name: String,
+  values: List(#(String, String)),
+) -> Form(a) {
+  let values =
+    all_values(form)
+    |> list.filter(fn(pair) { pair.0 != name })
+    |> list.append(values)
+  Form(..form, values:)
+}
+
+/// Add a single value to a form field. Existing values for the field are
+/// preserved, so this is useful for appending to a multi-value field such as
+/// a list of checkboxes or multi-select options.
+///
+/// ## Example
+///
+/// ```gleam
+/// let form =
+///   form.new(schema)
+///   |> form.add_field_value("species", "cat")
+/// ```
+///
+pub fn add_field_value(
+  form: Form(a),
+  name: String,
+  value: String,
+) -> Form(a) {
+  Form(..form, values: [#(name, value), ..form.values])
+}
+
+/// Remove a single value from a form field. Other values for the field are
+/// preserved, as are values for any other field.
+///
+/// ## Example
+///
+/// ```gleam
+/// let form =
+///   form.new(schema)
+///   |> form.remove_field_value("species", "cat")
+/// ```
+///
+pub fn remove_field_value(
+  form: Form(a),
+  name: String,
+  value: String,
+) -> Form(a) {
+  let values =
+    all_values(form)
+    |> list.filter(fn(pair) { pair.0 != name || pair.1 != value })
+  Form(..form, values:)
+}
+
 /// A parser that applies another parser if there is a non-empty-string input
 /// value for the field.
 ///
