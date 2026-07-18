@@ -1197,10 +1197,7 @@ pub fn add_values_test() {
 pub fn set_field_values_test() {
   let form =
     form.new({
-      use species <- form.field(
-        "species",
-        form.parse_list(form.parse_string),
-      )
+      use species <- form.field("species", form.parse_list(form.parse_string))
       form.success(species)
     })
 
@@ -1233,10 +1230,7 @@ pub fn set_field_values_test() {
 pub fn add_field_value_test() {
   let form =
     form.new({
-      use species <- form.field(
-        "species",
-        form.parse_list(form.parse_string),
-      )
+      use species <- form.field("species", form.parse_list(form.parse_string))
       form.success(species)
     })
 
@@ -1255,10 +1249,7 @@ pub fn add_field_value_test() {
   // Other fields are preserved
   let form =
     form.new({
-      use species <- form.field(
-        "species",
-        form.parse_list(form.parse_string),
-      )
+      use species <- form.field("species", form.parse_list(form.parse_string))
       form.success(species)
     })
     |> form.add_string("other", "value")
@@ -1271,10 +1262,7 @@ pub fn add_field_value_test() {
 pub fn remove_field_value_test() {
   let form =
     form.new({
-      use species <- form.field(
-        "species",
-        form.parse_list(form.parse_string),
-      )
+      use species <- form.field("species", form.parse_list(form.parse_string))
       form.success(species)
     })
 

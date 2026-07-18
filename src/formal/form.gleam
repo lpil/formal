@@ -316,11 +316,7 @@ pub fn set_field_values(
 ///   |> form.add_field_value("species", "cat")
 /// ```
 ///
-pub fn add_field_value(
-  form: Form(a),
-  name: String,
-  value: String,
-) -> Form(a) {
+pub fn add_field_value(form: Form(a), name: String, value: String) -> Form(a) {
   Form(..form, values: [#(name, value), ..form.values])
 }
 
