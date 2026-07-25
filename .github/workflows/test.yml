@@ -13,8 +13,8 @@ jobs:
       - uses: actions/checkout@v7
       - uses: erlef/setup-beam@v1
         with:
-          otp-version: "28"
-          gleam-version: "1.17.0"
+          otp-version: "29"
+          gleam-version: "1.18.0-rc1"
           rebar3-version: "3"
       - run: gleam test --target erlang
       - run: gleam test --target javascript
