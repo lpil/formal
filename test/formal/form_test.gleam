@@ -231,11 +231,11 @@ pub fn parse_url_test() {
     |> form.run
     == Ok(uri)
   assert form
-    |> form.add_string("data", "ht!tp://invalid")
+    |> form.add_string("data", "://invalid")
     |> form.run
     == Error(
       form
-      |> form.add_string("data", "ht!tp://invalid")
+      |> form.add_string("data", "://invalid")
       |> form.add_error("data", form.MustBeUrl),
     )
   assert form
